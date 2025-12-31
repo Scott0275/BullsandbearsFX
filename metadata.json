@@ -1,0 +1,7 @@
+{
+  "name": "BullsandbearsFx - Premium Trading Platform",
+  "description": "A world-class fintech and crypto investment platform featuring real-time market data, AI-driven insights, and professional trading tools.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
