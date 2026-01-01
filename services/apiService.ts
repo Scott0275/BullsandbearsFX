@@ -1,5 +1,13 @@
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+/**
+ * Base URL for the backend API.
+ * Priority: Environment Variable > Production Vercel App > Localhost
+ */
+export const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL || 
+  'https://investment-platform-core.vercel.app'
+).replace(/\/$/, '');
+
 export const TENANT_SLUG = 'bullsandbearsfx';
 
 /**
