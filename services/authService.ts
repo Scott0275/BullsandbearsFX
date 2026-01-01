@@ -1,18 +1,9 @@
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.bullsandbearsfx.com';
-const TENANT_SLUG = 'bullsandbearsfx';
+import { API_URL, getHeaders } from './apiService';
 
-const getHeaders = (token?: string) => {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'X-Tenant-Slug': TENANT_SLUG,
-  };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  return headers;
-};
-
+/**
+ * Service to handle all Authentication flows connecting to the backend API.
+ */
 export const authService = {
   async signup(data: any) {
     const response = await fetch(`${API_URL}/api/auth/signup`, {
@@ -26,8 +17,8 @@ export const authService = {
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Signup failed');
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Registration failed. Please check your details.');
     }
 
     return response.json();
@@ -44,12 +35,13 @@ export const authService = {
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Login failed');
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Login failed. Please verify your credentials.');
     }
 
     const result = await response.json();
     if (result.token) {
+      // Securely persist token and user metadata in local storage.
       localStorage.setItem('auth_token', result.token);
       localStorage.setItem('user_data', JSON.stringify(result.user));
     }
@@ -62,8 +54,13 @@ export const authService = {
   },
 
   getCurrentUser() {
-    const user = localStorage.getItem('user_data');
-    return user ? JSON.parse(user) : null;
+    try {
+      const user = localStorage.getItem('user_data');
+      return user ? JSON.parse(user) : null;
+    } catch (e) {
+      console.error("Failed to parse user data from storage", e);
+      return null;
+    }
   },
 
   getToken() {
