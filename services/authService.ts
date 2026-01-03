@@ -2,6 +2,22 @@
 import { API_URL, getHeaders } from './apiService';
 
 /**
+ * Maps user roles to their respective dashboard paths.
+ * Centralized for easy maintenance and scalability.
+ */
+export const getRedirectPath = (role: string): string => {
+  switch (role) {
+    case 'SUPER_ADMIN':
+      return '/super-admin';
+    case 'TENANT_ADMIN':
+      return '/admin';
+    case 'INVESTOR':
+    default:
+      return '/dashboard';
+  }
+};
+
+/**
  * Service to handle all Authentication flows connecting to the backend API.
  */
 export const authService = {
@@ -47,6 +63,8 @@ export const authService = {
     }
     return result;
   },
+
+  getRedirectPath,
 
   logout() {
     localStorage.removeItem('auth_token');

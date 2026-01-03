@@ -1,6 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
+  BrowserRouter, 
+  Routes, 
+  Route, 
+  Navigate, 
+  useNavigate,
+  useLocation
+} from 'react-router-dom';
+import { 
   Menu, 
   X, 
   ChevronRight, 
@@ -28,13 +36,41 @@ import {
   ShieldAlert,
   Loader2,
   TrendingDown,
-  LogOut
+  LogOut,
+  LayoutDashboard,
+  Settings,
+  Shield
 } from 'lucide-react';
 import { fetchMarketData } from './services/cryptoService';
 import { getMarketInsights } from './services/aiService';
 import { authService } from './services/authService';
 import { CryptoAsset } from './types';
 import { INVESTMENT_PLANS, SERVICES, WHY_CHOOSE_US, FAQS } from './constants';
+
+/**
+ * Higher-order component to protect routes based on authentication and roles.
+ */
+const ProtectedRoute = ({ 
+  children, 
+  allowedRoles 
+}: { 
+  children: React.ReactNode, 
+  allowedRoles?: string[] 
+}) => {
+  const user = authService.getCurrentUser();
+  const location = useLocation();
+
+  if (!user) {
+    return <Navigate to="/" state={{ from: location }} replace />;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    const fallbackPath = authService.getRedirectPath(user.role);
+    return <Navigate to={fallbackPath} replace />;
+  }
+
+  return <>{children}</>;
+};
 
 const AuthModal = ({ 
   isOpen, 
@@ -45,6 +81,7 @@ const AuthModal = ({
   onClose: () => void, 
   initialMode?: 'login' | 'signup' 
 }) => {
+  const navigate = useNavigate();
   const [mode, setMode] = useState<'login' | 'signup'>(initialMode);
   const [formData, setFormData] = useState({
     name: '',
@@ -105,12 +142,16 @@ const AuthModal = ({
           setMode('login');
         }, 2000);
       } else {
-        await authService.login(formData);
+        const result = await authService.login(formData);
         setIsSuccess(true);
+        
+        // Handle Role-Based Redirection
+        const redirectPath = authService.getRedirectPath(result.user.role);
+        
         setTimeout(() => {
           setIsSuccess(false);
           onClose();
-          window.location.reload(); // Refresh to update global auth state
+          navigate(redirectPath, { replace: true });
         }, 1500);
       }
     } catch (err: any) {
@@ -250,55 +291,130 @@ const AuthModal = ({
   );
 };
 
-const App: React.FC = () => {
-  const [marketData, setMarketData] = useState<CryptoAsset[]>([]);
+// Generic Dashboard Shell for Consistency
+const DashboardShell = ({ title, children, user, onLogout }: any) => {
+  return (
+    <div className="min-h-screen bg-white dark:bg-[#05070a] text-slate-900 dark:text-white transition-colors">
+      <nav className="fixed top-0 w-full z-50 glass-card border-b border-slate-200 dark:border-white/5 px-6 py-4">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 bg-amber-500 rounded-lg flex items-center justify-center font-bold text-black text-xl">BB</div>
+            <span className="text-2xl font-bold tracking-tighter">Bullsandbears<span className="text-amber-500">Fx</span></span>
+          </div>
+          <div className="flex items-center gap-6">
+            <div className="text-right hidden sm:block">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{user?.role?.replace('_', ' ')}</p>
+              <p className="text-sm font-bold">{user?.name}</p>
+            </div>
+            <button onClick={onLogout} className="p-2.5 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all">
+              <LogOut size={20} />
+            </button>
+          </div>
+        </div>
+      </nav>
+      <main className="pt-24 px-6 pb-12 max-w-7xl mx-auto">
+        <div className="mb-12">
+          <h1 className="text-4xl font-bold mb-2">{title}</h1>
+          <p className="text-slate-500 dark:text-gray-400 font-medium">Welcome back, {user?.name.split(' ')[0]}. Here is your overview.</p>
+        </div>
+        {children}
+      </main>
+    </div>
+  );
+};
+
+const InvestorDashboard = ({ user, onLogout }: any) => (
+  <DashboardShell title="Investor Dashboard" user={user} onLogout={onLogout}>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {[
+        { label: 'Total Equity', value: '$124,500.00', icon: TrendingUp, color: 'emerald' },
+        { label: 'Active Trades', value: '14', icon: Repeat, color: 'blue' },
+        { label: 'ROI (30d)', value: '+8.4%', icon: ArrowUpRight, color: 'amber' }
+      ].map((stat, i) => (
+        <div key={i} className="glass-card p-8 rounded-[2rem] border border-slate-200 dark:border-white/10 shadow-xl shadow-slate-200/20 dark:shadow-none">
+          <div className={`p-3 bg-${stat.color}-500/10 text-${stat.color}-500 w-fit rounded-xl mb-4`}>
+            <stat.icon size={24} />
+          </div>
+          <p className="text-sm text-slate-500 dark:text-gray-400 font-bold uppercase tracking-widest">{stat.label}</p>
+          <p className="text-3xl font-black mt-1 tracking-tight">{stat.value}</p>
+        </div>
+      ))}
+    </div>
+    <div className="mt-8 glass-card rounded-[2.5rem] p-10 h-64 flex items-center justify-center border border-dashed border-slate-300 dark:border-white/10 text-slate-400">
+      Interactive Performance Chart Loading...
+    </div>
+  </DashboardShell>
+);
+
+const AdminDashboard = ({ user, onLogout }: any) => (
+  <DashboardShell title="Tenant Administration" user={user} onLogout={onLogout}>
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      {[
+        { label: 'Total Clients', value: '1,240', icon: Users },
+        { label: 'Revenue (MTD)', value: '$542,000', icon: BarChart3 },
+        { label: 'Approval Queue', value: '12', icon: Clock },
+        { label: 'System Health', value: '99.9%', icon: Zap }
+      ].map((stat, i) => (
+        <div key={i} className="glass-card p-6 rounded-[2rem] border border-slate-200 dark:border-white/10">
+          <p className="text-xs text-slate-400 font-black uppercase mb-1 tracking-widest">{stat.label}</p>
+          <p className="text-2xl font-black">{stat.value}</p>
+        </div>
+      ))}
+    </div>
+    <div className="mt-8 p-10 glass-card rounded-[2.5rem] border border-slate-200 dark:border-white/10">
+      <h3 className="text-xl font-bold mb-6">Recent Transactions</h3>
+      <div className="space-y-4">
+        {[1,2,3,4,5].map(i => (
+          <div key={i} className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-2xl">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-blue-500/20 rounded-full flex items-center justify-center text-blue-500"><User size={18} /></div>
+              <div><p className="font-bold text-sm">Transaction #{1000 + i}</p><p className="text-xs text-slate-500">2 minutes ago</p></div>
+            </div>
+            <p className="font-bold text-emerald-500">+$2,500.00</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </DashboardShell>
+);
+
+const SuperAdminDashboard = ({ user, onLogout }: any) => (
+  <DashboardShell title="Super-Admin Core" user={user} onLogout={onLogout}>
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="lg:col-span-2 space-y-8">
+         <div className="p-8 bg-amber-500 text-black rounded-[2.5rem] shadow-2xl shadow-amber-500/20">
+            <h3 className="text-2xl font-black mb-2">Global Platform Status</h3>
+            <p className="font-medium opacity-80 mb-6">All server clusters operating at peak performance across 4 regions.</p>
+            <button className="px-6 py-3 bg-black text-white rounded-xl font-bold flex items-center gap-2 hover:scale-105 transition-transform"><Shield size={20} /> Server Logs</button>
+         </div>
+         <div className="glass-card p-8 rounded-[2.5rem] border border-slate-200 dark:border-white/10">
+            <h3 className="text-xl font-bold mb-6">Tenant Accounts</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-white/5"><th className="pb-4 text-xs font-black uppercase text-slate-400">Tenant</th><th className="pb-4 text-xs font-black uppercase text-slate-400">Status</th><th className="pb-4 text-xs font-black uppercase text-slate-400">Actions</th></tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-slate-200 dark:border-white/5"><td className="py-4 font-bold">BullsandbearsFx</td><td><span className="px-3 py-1 bg-emerald-500/10 text-emerald-500 text-[10px] font-black rounded-full uppercase">Active</span></td><td className="py-4"><button className="text-amber-500 font-bold text-sm">Manage</button></td></tr>
+                  <tr className="border-b border-slate-200 dark:border-white/5"><td className="py-4 font-bold">ZenithTrade</td><td><span className="px-3 py-1 bg-emerald-500/10 text-emerald-500 text-[10px] font-black rounded-full uppercase">Active</span></td><td className="py-4"><button className="text-amber-500 font-bold text-sm">Manage</button></td></tr>
+                </tbody>
+              </table>
+            </div>
+         </div>
+      </div>
+      <div className="space-y-6">
+        <div className="glass-card p-6 rounded-[2rem] border border-slate-200 dark:border-white/10">
+          <h4 className="font-bold flex items-center gap-2 mb-4"><Settings size={18} /> Global Config</h4>
+          <p className="text-xs text-slate-500 leading-relaxed">Update platform-wide maintenance windows or fee structures from here.</p>
+        </div>
+      </div>
+    </div>
+  </DashboardShell>
+);
+
+const LandingPage = ({ isDarkMode, setIsDarkMode, user, onLogout, setAuthModal, aiInsight, marketData }: any) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [aiInsight, setAiInsight] = useState<string>('Analyzing market sentiment...');
-  const [authModal, setAuthModal] = useState<{isOpen: boolean, mode: 'login' | 'signup'}>({
-    isOpen: false,
-    mode: 'login'
-  });
-  const [user, setUser] = useState<any>(null);
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    try {
-      const saved = localStorage.getItem('theme');
-      return saved ? saved === 'dark' : true;
-    } catch {
-      return true;
-    }
-  });
-
-  useEffect(() => {
-    const currentUser = authService.getCurrentUser();
-    if (currentUser) {
-      setUser(currentUser);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  }, [isDarkMode]);
-
-  useEffect(() => {
-    const loadMarket = async () => {
-      const data = await fetchMarketData();
-      setMarketData(data);
-      if (data && data.length > 0) {
-        const topAssets = data.slice(0, 3).map(a => a.name).join(', ');
-        const insight = await getMarketInsights(topAssets);
-        setAiInsight(insight);
-      }
-    };
-    loadMarket();
-    const interval = setInterval(loadMarket, 60000);
-    return () => clearInterval(interval);
-  }, []);
+  const navigate = useNavigate();
 
   const scrollToSection = (e: React.MouseEvent<HTMLElement>, id: string) => {
     e.preventDefault();
@@ -312,24 +428,12 @@ const App: React.FC = () => {
     }
   };
 
-  const handleLogout = () => {
-    authService.logout();
-    setUser(null);
-    window.location.reload();
-  };
-
   const IconMap: Record<string, React.FC<any>> = {
     Repeat, Briefcase, Globe, TrendingUp, BarChart3, PieChart
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#05070a] text-slate-900 dark:text-white transition-colors duration-300">
-      <AuthModal 
-        isOpen={authModal.isOpen} 
-        initialMode={authModal.mode}
-        onClose={() => setAuthModal({ ...authModal, isOpen: false })} 
-      />
-
+    <>
       <nav className="fixed top-0 w-full z-50 glass-card border-b border-slate-200 dark:border-white/5 px-6 py-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
@@ -352,16 +456,19 @@ const App: React.FC = () => {
             {user ? (
               <div className="flex items-center gap-4">
                 <div className="flex flex-col items-end">
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Active Trader</span>
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{user.role.replace('_', ' ')}</span>
                   <span className="text-sm font-bold text-slate-900 dark:text-white">{user.name}</span>
                 </div>
                 <button 
-                  onClick={handleLogout}
+                  onClick={onLogout}
                   className="p-2.5 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all"
                 >
                   <LogOut size={20} />
                 </button>
-                <button className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-full transition-all hover:scale-105 shadow-xl shadow-amber-500/20">
+                <button 
+                  onClick={() => navigate(authService.getRedirectPath(user.role))}
+                  className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-full transition-all hover:scale-105 shadow-xl shadow-amber-500/20"
+                >
                   Dashboard
                 </button>
               </div>
@@ -392,32 +499,6 @@ const App: React.FC = () => {
             </button>
           </div>
         </div>
-
-        {isMenuOpen && (
-          <div className="lg:hidden absolute top-full left-0 w-full bg-white dark:bg-[#0a0e17] border-b border-slate-200 dark:border-white/5 p-6 flex flex-col gap-4 animate-in fade-in slide-in-from-top-4 shadow-xl">
-            <a href="#home" onClick={(e) => scrollToSection(e, '#home')} className="text-lg py-2 font-medium">Home</a>
-            <a href="#markets" onClick={(e) => scrollToSection(e, '#markets')} className="text-lg py-2 font-medium">Markets</a>
-            <a href="#services" onClick={(e) => scrollToSection(e, '#services')} className="text-lg py-2 font-medium">Services</a>
-            {user ? (
-               <button className="w-full py-4 bg-amber-500 text-black font-bold rounded-xl mt-4 shadow-lg">Go to Dashboard</button>
-            ) : (
-              <div className="grid grid-cols-2 gap-4 mt-4">
-                <button 
-                  onClick={() => { setIsMenuOpen(false); setAuthModal({ isOpen: true, mode: 'login' }); }}
-                  className="py-4 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white font-bold rounded-xl"
-                >
-                  Sign In
-                </button>
-                <button 
-                  onClick={() => { setIsMenuOpen(false); setAuthModal({ isOpen: true, mode: 'signup' }); }}
-                  className="py-4 bg-amber-500 text-black font-bold rounded-xl shadow-lg"
-                >
-                  Sign Up
-                </button>
-              </div>
-            )}
-          </div>
-        )}
       </nav>
 
       {/* Market Ticker */}
@@ -429,14 +510,11 @@ const App: React.FC = () => {
                 key={`${asset.id}-${idx}`} 
                 className="inline-flex items-center gap-4 px-10 border-r border-slate-200 dark:border-white/10 group transition-all"
               >
-                <div className="relative">
-                  <img src={asset.image} alt={asset.name} className="w-6 h-6 rounded-full grayscale group-hover:grayscale-0 transition-all duration-300" />
-                  <div className={`absolute -bottom-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-[#05070a] ${asset.price_change_percentage_24h >= 0 ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
-                </div>
+                <img src={asset.image} alt={asset.name} className="w-6 h-6 rounded-full grayscale group-hover:grayscale-0 transition-all duration-300" />
                 <div className="flex flex-col">
                   <span className="font-bold text-xs text-slate-400 dark:text-gray-500 group-hover:text-amber-500 transition-colors uppercase tracking-widest">{asset.symbol}</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-slate-900 dark:text-white">${asset.current_price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    <span className="text-sm font-bold">${asset.current_price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                     <span className={`flex items-center gap-0.5 text-[10px] font-black ${asset.price_change_percentage_24h >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
                       {asset.price_change_percentage_24h >= 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
                       {Math.abs(asset.price_change_percentage_24h)?.toFixed(2)}%
@@ -455,7 +533,7 @@ const App: React.FC = () => {
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-amber-600 dark:text-amber-400 text-xs font-black uppercase tracking-widest animate-pulse">
               <Zap size={14} className="fill-current" /> Institutional Grade Trading
             </div>
-            <h1 className="text-5xl lg:text-7xl font-bold leading-tight text-slate-900 dark:text-white tracking-tight">
+            <h1 className="text-5xl lg:text-7xl font-bold leading-tight tracking-tight">
               Trade Smarter. <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-600 to-amber-400 dark:from-amber-400 dark:to-amber-200">Scale Consistently.</span>
             </h1>
@@ -464,7 +542,7 @@ const App: React.FC = () => {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
               <button 
-                onClick={() => setAuthModal({ isOpen: true, mode: user ? 'login' : 'signup' })} 
+                onClick={() => user ? navigate(authService.getRedirectPath(user.role)) : setAuthModal({ isOpen: true, mode: 'signup' })} 
                 className="px-10 py-5 bg-amber-500 hover:bg-amber-600 text-black font-black rounded-2xl transition-all shadow-2xl shadow-amber-500/30 flex items-center justify-center gap-2 hover:scale-105 active:scale-95"
               >
                 {user ? 'Go to Dashboard' : 'Start Trading Now'} <ArrowUpRight size={22} />
@@ -513,7 +591,7 @@ const App: React.FC = () => {
             const Icon = IconMap[service.icon] || Globe;
             return (
               <div key={idx} className="p-10 rounded-[2.5rem] bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 hover:border-amber-500/50 transition-all hover:-translate-y-3 group shadow-xl shadow-slate-200/20 dark:shadow-none">
-                <div className="w-16 h-16 rounded-[1.5rem] bg-amber-500/10 flex items-center justify-center text-amber-600 dark:text-amber-500 mb-8 group-hover:scale-110 group-hover:bg-amber-500 group-hover:text-black transition-all duration-500 shadow-lg shadow-amber-500/5">
+                <div className="w-16 h-16 rounded-[1.5rem] bg-amber-500/10 flex items-center justify-center text-amber-600 dark:text-amber-500 mb-8 group-hover:scale-110 group-hover:bg-amber-500 group-hover:text-black transition-all duration-500">
                   <Icon size={36} />
                 </div>
                 <h3 className="text-2xl font-bold mb-4">{service.title}</h3>
@@ -521,40 +599,6 @@ const App: React.FC = () => {
               </div>
             );
           })}
-        </div>
-      </section>
-
-      <section id="plans" className="py-24 px-6 relative overflow-hidden">
-        <div className="max-w-7xl mx-auto text-center mb-16 space-y-4">
-          <h2 className="text-4xl lg:text-5xl font-bold tracking-tight">Investment Portfolios</h2>
-          <p className="text-slate-600 dark:text-gray-400 font-medium">Strategic asset management with optimized returns across four distinct tiers.</p>
-        </div>
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-          {INVESTMENT_PLANS.map((plan, idx) => (
-            <div key={idx} className="relative p-10 rounded-[3rem] bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 hover:border-amber-500/50 transition-all shadow-xl shadow-slate-200/10 dark:shadow-none flex flex-col group">
-              {idx === 2 && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-amber-500 text-black px-5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-xl z-20">Recommended</div>
-              )}
-              <div className="mb-8">
-                <h3 className="text-2xl font-black mb-3 text-slate-900 dark:text-white">{plan.name}</h3>
-                <div className={`inline-block px-4 py-1.5 rounded-2xl text-xs font-black uppercase tracking-widest ${plan.accent}`}>{plan.roi}</div>
-              </div>
-              <div className="text-2xl font-black mb-8 tracking-tighter">{plan.range}</div>
-              <div className="space-y-5 mb-12 flex-grow">
-                {plan.features.map((feature, fIdx) => (
-                  <div key={fIdx} className="flex items-center gap-3 text-sm text-slate-600 dark:text-gray-400 font-semibold">
-                    <CheckCircle2 size={18} className="text-emerald-500 shrink-0" strokeWidth={3} /> {feature}
-                  </div>
-                ))}
-              </div>
-              <button 
-                onClick={() => setAuthModal({ isOpen: true, mode: user ? 'login' : 'signup' })} 
-                className={`w-full py-5 rounded-[1.5rem] font-black transition-all hover:scale-105 active:scale-95 ${idx === 2 ? 'bg-amber-500 text-black shadow-2xl shadow-amber-500/30' : 'bg-slate-200 dark:bg-white/10 text-slate-900 dark:text-white border border-slate-300 dark:border-white/10'}`}
-              >
-                {user ? 'Invest Now' : 'Start Now'}
-              </button>
-            </div>
-          ))}
         </div>
       </section>
 
@@ -567,18 +611,114 @@ const App: React.FC = () => {
           <p className="text-slate-500 dark:text-gray-400 max-w-2xl mx-auto text-lg font-medium leading-relaxed">
             Leading the evolution of online trading with transparency, high-performance tools, and unwavering client commitment. Join 30,000+ investors worldwide.
           </p>
-          <div className="flex flex-wrap justify-center gap-10 text-sm font-black uppercase tracking-[0.1em] text-slate-400 dark:text-gray-500">
-            <a href="#" className="hover:text-amber-500 transition-colors">Privacy Policy</a>
-            <a href="#" className="hover:text-amber-500 transition-colors">Terms of Service</a>
-            <a href="#" className="hover:text-amber-500 transition-colors">Risk Disclosure</a>
-            <a href="mailto:support@bullsandbearsfx.com" className="hover:text-amber-500 transition-colors">Support Center</a>
-          </div>
           <div className="pt-12 border-t border-slate-200 dark:border-white/5">
              <p className="text-[10px] text-slate-400 dark:text-gray-600 font-black uppercase tracking-[0.3em]">© 2024 BullsandbearsFx Corporation. Global Registered Entity.</p>
           </div>
         </div>
       </footer>
-    </div>
+    </>
+  );
+};
+
+const App: React.FC = () => {
+  const [marketData, setMarketData] = useState<CryptoAsset[]>([]);
+  const [aiInsight, setAiInsight] = useState<string>('Analyzing market sentiment...');
+  const [authModal, setAuthModal] = useState<{isOpen: boolean, mode: 'login' | 'signup'}>({
+    isOpen: false,
+    mode: 'login'
+  });
+  const [user, setUser] = useState<any>(null);
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    try {
+      const saved = localStorage.getItem('theme');
+      return saved ? saved === 'dark' : true;
+    } catch {
+      return true;
+    }
+  });
+
+  useEffect(() => {
+    const currentUser = authService.getCurrentUser();
+    if (currentUser) setUser(currentUser);
+  }, []);
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [isDarkMode]);
+
+  useEffect(() => {
+    const loadMarket = async () => {
+      const data = await fetchMarketData();
+      setMarketData(data);
+      if (data && data.length > 0) {
+        const topAssets = data.slice(0, 3).map(a => a.name).join(', ');
+        const insight = await getMarketInsights(topAssets);
+        setAiInsight(insight);
+      }
+    };
+    loadMarket();
+    const interval = setInterval(loadMarket, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleLogout = () => {
+    authService.logout();
+    setUser(null);
+    window.location.href = '/'; // Hard redirect to clear all states
+  };
+
+  return (
+    <BrowserRouter>
+      <div className="min-h-screen bg-white dark:bg-[#05070a] text-slate-900 dark:text-white transition-colors duration-300">
+        <AuthModal 
+          isOpen={authModal.isOpen} 
+          initialMode={authModal.mode}
+          onClose={() => setAuthModal({ ...authModal, isOpen: false })} 
+        />
+        
+        <Routes>
+          <Route path="/" element={
+            <LandingPage 
+              isDarkMode={isDarkMode} 
+              setIsDarkMode={setIsDarkMode} 
+              user={user} 
+              onLogout={handleLogout}
+              setAuthModal={setAuthModal}
+              aiInsight={aiInsight}
+              marketData={marketData}
+            />
+          } />
+
+          {/* Role-Based Protected Routes */}
+          <Route path="/dashboard" element={
+            <ProtectedRoute allowedRoles={['INVESTOR']}>
+              <InvestorDashboard user={user} onLogout={handleLogout} />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/admin" element={
+            <ProtectedRoute allowedRoles={['TENANT_ADMIN']}>
+              <AdminDashboard user={user} onLogout={handleLogout} />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/super-admin" element={
+            <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+              <SuperAdminDashboard user={user} onLogout={handleLogout} />
+            </ProtectedRoute>
+          } />
+
+          {/* Catch-all Redirect */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
+    </BrowserRouter>
   );
 };
 
