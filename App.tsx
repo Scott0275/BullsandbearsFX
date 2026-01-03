@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   BrowserRouter, 
   Routes, 
@@ -49,16 +49,31 @@ import { INVESTMENT_PLANS, SERVICES, WHY_CHOOSE_US, FAQS } from './constants';
 
 /**
  * Higher-order component to protect routes based on authentication and roles.
+ * Updated to handle loading states and reactive user data.
  */
 const ProtectedRoute = ({ 
   children, 
+  user,
+  isInitializing,
   allowedRoles 
 }: { 
   children: React.ReactNode, 
+  user: any,
+  isInitializing: boolean,
   allowedRoles?: string[] 
 }) => {
-  const user = authService.getCurrentUser();
   const location = useLocation();
+
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#05070a]">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="animate-spin text-amber-500" size={40} />
+          <p className="text-amber-500/60 font-bold uppercase tracking-widest text-xs">Securing Session...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return <Navigate to="/" state={{ from: location }} replace />;
@@ -75,10 +90,12 @@ const ProtectedRoute = ({
 const AuthModal = ({ 
   isOpen, 
   onClose, 
+  onLoginSuccess,
   initialMode = 'login' 
 }: { 
   isOpen: boolean, 
   onClose: () => void, 
+  onLoginSuccess: (user: any) => void,
   initialMode?: 'login' | 'signup' 
 }) => {
   const navigate = useNavigate();
@@ -145,14 +162,16 @@ const AuthModal = ({
         const result = await authService.login(formData);
         setIsSuccess(true);
         
-        // Handle Role-Based Redirection
+        // CRITICAL: Update parent state BEFORE navigating to ensure ProtectedRoute has the user data
+        onLoginSuccess(result.user);
+        
         const redirectPath = authService.getRedirectPath(result.user.role);
         
         setTimeout(() => {
           setIsSuccess(false);
           onClose();
           navigate(redirectPath, { replace: true });
-        }, 1500);
+        }, 800);
       }
     } catch (err: any) {
       setApiError(err.message || 'An unexpected error occurred. Please try again.');
@@ -315,7 +334,7 @@ const DashboardShell = ({ title, children, user, onLogout }: any) => {
       <main className="pt-24 px-6 pb-12 max-w-7xl mx-auto">
         <div className="mb-12">
           <h1 className="text-4xl font-bold mb-2">{title}</h1>
-          <p className="text-slate-500 dark:text-gray-400 font-medium">Welcome back, {user?.name.split(' ')[0]}. Here is your overview.</p>
+          <p className="text-slate-500 dark:text-gray-400 font-medium">Welcome back, {user?.name?.split(' ')[0]}. Here is your overview.</p>
         </div>
         {children}
       </main>
@@ -456,7 +475,7 @@ const LandingPage = ({ isDarkMode, setIsDarkMode, user, onLogout, setAuthModal, 
             {user ? (
               <div className="flex items-center gap-4">
                 <div className="flex flex-col items-end">
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{user.role.replace('_', ' ')}</span>
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{user.role?.replace('_', ' ')}</span>
                   <span className="text-sm font-bold text-slate-900 dark:text-white">{user.name}</span>
                 </div>
                 <button 
@@ -628,6 +647,7 @@ const App: React.FC = () => {
     mode: 'login'
   });
   const [user, setUser] = useState<any>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     try {
       const saved = localStorage.getItem('theme');
@@ -637,9 +657,21 @@ const App: React.FC = () => {
     }
   });
 
+  // CRITICAL: Handle initial session check on mount
   useEffect(() => {
-    const currentUser = authService.getCurrentUser();
-    if (currentUser) setUser(currentUser);
+    const initAuth = async () => {
+      try {
+        const currentUser = authService.getCurrentUser();
+        if (currentUser) {
+          setUser(currentUser);
+        }
+      } catch (err) {
+        console.error("Auth init error:", err);
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+    initAuth();
   }, []);
 
   useEffect(() => {
@@ -670,7 +702,11 @@ const App: React.FC = () => {
   const handleLogout = () => {
     authService.logout();
     setUser(null);
-    window.location.href = '/'; // Hard redirect to clear all states
+    window.location.href = '/'; // Hard redirect to clear all states and catch-all routes
+  };
+
+  const handleLoginSuccess = (userData: any) => {
+    setUser(userData);
   };
 
   return (
@@ -679,6 +715,7 @@ const App: React.FC = () => {
         <AuthModal 
           isOpen={authModal.isOpen} 
           initialMode={authModal.mode}
+          onLoginSuccess={handleLoginSuccess}
           onClose={() => setAuthModal({ ...authModal, isOpen: false })} 
         />
         
@@ -695,21 +732,21 @@ const App: React.FC = () => {
             />
           } />
 
-          {/* Role-Based Protected Routes */}
+          {/* Role-Based Protected Routes with reactive user state */}
           <Route path="/dashboard" element={
-            <ProtectedRoute allowedRoles={['INVESTOR']}>
+            <ProtectedRoute user={user} isInitializing={isInitializing} allowedRoles={['INVESTOR']}>
               <InvestorDashboard user={user} onLogout={handleLogout} />
             </ProtectedRoute>
           } />
           
           <Route path="/admin" element={
-            <ProtectedRoute allowedRoles={['TENANT_ADMIN']}>
+            <ProtectedRoute user={user} isInitializing={isInitializing} allowedRoles={['TENANT_ADMIN']}>
               <AdminDashboard user={user} onLogout={handleLogout} />
             </ProtectedRoute>
           } />
           
           <Route path="/super-admin" element={
-            <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+            <ProtectedRoute user={user} isInitializing={isInitializing} allowedRoles={['SUPER_ADMIN']}>
               <SuperAdminDashboard user={user} onLogout={handleLogout} />
             </ProtectedRoute>
           } />
