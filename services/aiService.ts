@@ -6,9 +6,12 @@ import { GoogleGenAI } from "@google/genai";
  * Handles transient network/RPC errors by providing a fallback insight.
  */
 export const getMarketInsights = async (assets: string) => {
+  // Use the API key provided in the environment.
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) return "AI insights are currently in standby mode. Monitor assets for volatility.";
+
   try {
-    // Initializing Gemini client using the required named parameter and environment variable.
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: apiKey });
     
     // Using gemini-3-flash-preview for high-speed sentiment analysis.
     const response = await ai.models.generateContent({
@@ -20,7 +23,7 @@ export const getMarketInsights = async (assets: string) => {
       },
     });
 
-    // Directly access the .text property from GenerateContentResponse as per the SDK documentation.
+    // Directly access the .text property from GenerateContentResponse
     if (response && response.text) {
       return response.text.trim();
     }
