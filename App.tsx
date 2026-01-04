@@ -57,52 +57,21 @@ import { INVESTMENT_PLANS, SERVICES, WHY_CHOOSE_US, FAQS, TESTIMONIALS } from '.
 const ProtectedRoute = ({ 
   children, 
   user,
-  isInitializing,
   allowedRoles 
 }: { 
   children: React.ReactNode, 
   user: any,
-  isInitializing: boolean,
   allowedRoles?: string[] 
 }) => {
-  const location = useLocation();
-
-  if (isInitializing) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#05070a] selection:bg-amber-500/30">
-        <div className="relative flex flex-col items-center gap-6 p-12 glass-card rounded-[3rem] border-white/5 shadow-2xl overflow-hidden group">
-          <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-50"></div>
-          <div className="absolute -top-12 -right-12 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl animate-pulse"></div>
-          
-          <div className="relative">
-            <Loader2 className="animate-spin text-amber-500 relative z-10" size={52} strokeWidth={2} />
-            <div className="absolute inset-0 animate-ping bg-amber-500/20 rounded-full blur-xl"></div>
-          </div>
-          
-          <div className="text-center space-y-3 relative z-10">
-            <p className="text-amber-500 font-black uppercase tracking-[0.3em] text-[10px] opacity-80">Security Protocol</p>
-            <h3 className="text-white text-xl font-bold tracking-tight">Securing Session...</h3>
-            <div className="flex justify-center gap-1.5 pt-1">
-              <span className="w-1.5 h-1.5 bg-amber-500/50 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-              <span className="w-1.5 h-1.5 bg-amber-500/50 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-              <span className="w-1.5 h-1.5 bg-amber-500/50 rounded-full animate-bounce"></span>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   if (!user) {
-    return <Navigate to="/" state={{ from: location }} replace />;
+    return <Navigate to="/" replace />;
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    const fallbackPath = authService.getRedirectPath(user.role);
-    return <Navigate to={fallbackPath} replace />;
+    return <Navigate to="/" replace />;
   }
 
-  return <>{children}</>;
+  return children;
 };
 
 const AuthModal = ({ 
@@ -116,7 +85,6 @@ const AuthModal = ({
   onLoginSuccess: (user: any) => void,
   initialMode?: 'login' | 'signup' 
 }) => {
-  const navigate = useNavigate();
   const [mode, setMode] = useState<'login' | 'signup'>(initialMode);
   const [formData, setFormData] = useState({
     name: '',
@@ -179,14 +147,13 @@ const AuthModal = ({
         }, 2000);
       } else {
         const result = await authService.login(formData);
-        setIsSuccess(true);
+        
+        // Update global user state ONLY
         onLoginSuccess(result.user);
-        const redirectPath = authService.getRedirectPath(result.user.role);
-        setTimeout(() => {
-          setIsSuccess(false);
-          onClose();
-          navigate(redirectPath, { replace: true });
-        }, 1200);
+        
+        // Close modal immediately
+        setIsSuccess(false);
+        onClose();
       }
     } catch (err: any) {
       setApiError(err.message || 'An unexpected error occurred. Please try again.');
@@ -653,6 +620,104 @@ const LandingPage = ({ isDarkMode, setIsDarkMode, user, onLogout, setAuthModal, 
   );
 };
 
+const AppContent: React.FC<{
+  marketData: CryptoAsset[];
+  aiInsight: string;
+  authModal: {isOpen: boolean, mode: 'login' | 'signup'};
+  setAuthModal: (modal: {isOpen: boolean, mode: 'login' | 'signup'}) => void;
+  user: any;
+  isInitializing: boolean;
+  isDarkMode: boolean;
+  setIsDarkMode: (dark: boolean) => void;
+  handleLogout: () => void;
+  handleLoginSuccess: (userData: any) => void;
+}> = ({ marketData, aiInsight, authModal, setAuthModal, user, isInitializing, isDarkMode, setIsDarkMode, handleLogout, handleLoginSuccess }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (!isInitializing && user) {
+      const redirectPath = authService.getRedirectPath(user.role);
+
+      // Only redirect from public pages
+      if (location.pathname === '/' || location.pathname === '/login') {
+        navigate(redirectPath, { replace: true });
+      }
+    }
+  }, [user, isInitializing, location.pathname, navigate]);
+
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#05070a] selection:bg-amber-500/30">
+        <div className="relative flex flex-col items-center gap-6 p-12 glass-card rounded-[3rem] border-white/5 shadow-2xl overflow-hidden group">
+          <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-50"></div>
+          <div className="absolute -top-12 -right-12 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl animate-pulse"></div>
+          
+          <div className="relative">
+            <Loader2 className="animate-spin text-amber-500 relative z-10" size={52} strokeWidth={2} />
+            <div className="absolute inset-0 animate-ping bg-amber-500/20 rounded-full blur-xl"></div>
+          </div>
+          
+          <div className="text-center space-y-3 relative z-10">
+            <p className="text-amber-500 font-black uppercase tracking-[0.3em] text-[10px] opacity-80">Security Protocol</p>
+            <h3 className="text-white text-xl font-bold tracking-tight">Securing Session...</h3>
+            <div className="flex justify-center gap-1.5 pt-1">
+              <span className="w-1.5 h-1.5 bg-amber-500/50 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+              <span className="w-1.5 h-1.5 bg-amber-500/50 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+              <span className="w-1.5 h-1.5 bg-amber-500/50 rounded-full animate-bounce"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <AuthModal 
+        isOpen={authModal.isOpen} 
+        initialMode={authModal.mode}
+        onLoginSuccess={handleLoginSuccess}
+        onClose={() => setAuthModal({ ...authModal, isOpen: false })} 
+      />
+      
+      <Routes>
+        <Route path="/" element={
+          <LandingPage 
+            isDarkMode={isDarkMode} 
+            setIsDarkMode={setIsDarkMode} 
+            user={user} 
+            onLogout={handleLogout}
+            setAuthModal={setAuthModal}
+            aiInsight={aiInsight}
+            marketData={marketData}
+          />
+        } />
+
+        <Route path="/dashboard" element={
+          <ProtectedRoute user={user} allowedRoles={['INVESTOR']}>
+            <InvestorDashboard user={user} onLogout={handleLogout} />
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/admin" element={
+          <ProtectedRoute user={user} allowedRoles={['TENANT_ADMIN']}>
+            <AdminDashboard user={user} onLogout={handleLogout} />
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/super-admin" element={
+          <ProtectedRoute user={user} allowedRoles={['SUPER_ADMIN']}>
+            <SuperAdminDashboard user={user} onLogout={handleLogout} />
+          </ProtectedRoute>
+        } />
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
+  );
+};
+
 const App: React.FC = () => {
   const [marketData, setMarketData] = useState<CryptoAsset[]>([]);
   const [aiInsight, setAiInsight] = useState<string>('Analyzing market sentiment...');
@@ -672,17 +737,12 @@ const App: React.FC = () => {
   });
 
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        const currentUser = authService.getCurrentUser();
-        if (currentUser) setUser(currentUser);
-      } catch (err) {
-        console.error("Auth init error:", err);
-      } finally {
-        setTimeout(() => setIsInitializing(false), 800);
-      }
-    };
-    initAuth();
+    // Load user from localStorage on app boot
+    const existingUser = authService.getCurrentUser();
+    if (existingUser) {
+      setUser(existingUser);
+    }
+    setIsInitializing(false);
   }, []);
 
   useEffect(() => {
@@ -716,46 +776,18 @@ const App: React.FC = () => {
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-white dark:bg-[#05070a] text-slate-900 dark:text-white transition-colors duration-300">
-        <AuthModal 
-          isOpen={authModal.isOpen} 
-          initialMode={authModal.mode}
-          onLoginSuccess={handleLoginSuccess}
-          onClose={() => setAuthModal({ ...authModal, isOpen: false })} 
+        <AppContent 
+          marketData={marketData}
+          aiInsight={aiInsight}
+          authModal={authModal}
+          setAuthModal={setAuthModal}
+          user={user}
+          isInitializing={isInitializing}
+          isDarkMode={isDarkMode}
+          setIsDarkMode={setIsDarkMode}
+          handleLogout={handleLogout}
+          handleLoginSuccess={handleLoginSuccess}
         />
-        
-        <Routes>
-          <Route path="/" element={
-            <LandingPage 
-              isDarkMode={isDarkMode} 
-              setIsDarkMode={setIsDarkMode} 
-              user={user} 
-              onLogout={handleLogout}
-              setAuthModal={setAuthModal}
-              aiInsight={aiInsight}
-              marketData={marketData}
-            />
-          } />
-
-          <Route path="/dashboard" element={
-            <ProtectedRoute user={user} isInitializing={isInitializing} allowedRoles={['INVESTOR']}>
-              <InvestorDashboard user={user} onLogout={handleLogout} />
-            </ProtectedRoute>
-          } />
-          
-          <Route path="/admin" element={
-            <ProtectedRoute user={user} isInitializing={isInitializing} allowedRoles={['TENANT_ADMIN']}>
-              <AdminDashboard user={user} onLogout={handleLogout} />
-            </ProtectedRoute>
-          } />
-          
-          <Route path="/super-admin" element={
-            <ProtectedRoute user={user} isInitializing={isInitializing} allowedRoles={['SUPER_ADMIN']}>
-              <SuperAdminDashboard user={user} onLogout={handleLogout} />
-            </ProtectedRoute>
-          } />
-
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
       </div>
     </BrowserRouter>
   );
