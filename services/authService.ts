@@ -56,10 +56,12 @@ export const authService = {
     }
 
     const result = await response.json();
-    if (result.token) {
+    if (result.token && result.user) {
       // Securely persist token and user metadata in local storage.
       localStorage.setItem('auth_token', result.token);
       localStorage.setItem('user_data', JSON.stringify(result.user));
+    } else if (result.token && !result.user) {
+      console.warn("Login successful but no user data returned from API.");
     }
     return result;
   },
@@ -74,9 +76,16 @@ export const authService = {
   getCurrentUser() {
     try {
       const user = localStorage.getItem('user_data');
-      return user ? JSON.parse(user) : null;
+      // Explicitly check for null, empty, or the literal string "undefined"
+      if (!user || user === 'undefined' || user === 'null') {
+        return null;
+      }
+      return JSON.parse(user);
     } catch (e) {
-      console.error("Failed to parse user data from storage", e);
+      // If parsing fails, the data is corrupted. Clear it to prevent repeat errors.
+      console.warn("Corrupted user data found in storage. Clearing session.");
+      localStorage.removeItem('user_data');
+      localStorage.removeItem('auth_token');
       return null;
     }
   },

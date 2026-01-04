@@ -22,7 +22,7 @@ export const INVESTMENT_PLANS: Plan[] = [
     name: "Starter",
     range: "$1,000 – $5,000",
     roi: "30% ROI",
-    features: ["24/7 Expert Support", "Copy Trading", "10% Referral Earnings"],
+    features: ["24/7 Expert Support", "Basic Copy Trading", "10% Referral Earnings"],
     color: "emerald",
     accent: "bg-emerald-500/20 text-emerald-400"
   },
@@ -30,7 +30,7 @@ export const INVESTMENT_PLANS: Plan[] = [
     name: "Silver",
     range: "$5,000 – $50,000",
     roi: "45% ROI",
-    features: ["24/7 Expert Support", "Copy Trading", "15% Referral Earnings"],
+    features: ["Priority Copy Trading", "Market Insights", "15% Referral Earnings"],
     color: "blue",
     accent: "bg-blue-500/20 text-blue-400"
   },
@@ -38,7 +38,7 @@ export const INVESTMENT_PLANS: Plan[] = [
     name: "Gold",
     range: "$50,000 – $100,000",
     roi: "60% ROI",
-    features: ["24/7 Expert Support", "Copy Trading", "20% Referral Earnings"],
+    features: ["Dedicated Manager", "Institutional Tools", "20% Referral Earnings"],
     color: "amber",
     accent: "bg-amber-500/20 text-amber-400"
   },
@@ -46,9 +46,30 @@ export const INVESTMENT_PLANS: Plan[] = [
     name: "Platinum",
     range: "$100,000 and Above",
     roi: "80% ROI",
-    features: ["All Premium Services", "Priority Support", "Dedicated Manager"],
+    features: ["All Premium Services", "Direct Desk Access", "25% Referral Earnings"],
     color: "purple",
     accent: "bg-purple-500/20 text-purple-400"
+  }
+];
+
+export const TESTIMONIALS = [
+  {
+    name: "Alexander Wright",
+    role: "Equity Trader",
+    content: "The copy trading feature on BullsandbearsFx transformed my portfolio. Their execution speeds are unmatched in the retail space.",
+    avatar: "https://i.pravatar.cc/150?u=alex"
+  },
+  {
+    name: "Sarah Chen",
+    role: "Portfolio Manager",
+    content: "Institutional-grade tools with a user-friendly interface. The AI insights provide that extra edge needed for volatile sessions.",
+    avatar: "https://i.pravatar.cc/150?u=sarah"
+  },
+  {
+    name: "Marcus Thorne",
+    role: "Private Investor",
+    content: "Withdrawals are consistently fast. I've been with the platform for 2 years and the service has only improved over time.",
+    avatar: "https://i.pravatar.cc/150?u=marcus"
   }
 ];
 
