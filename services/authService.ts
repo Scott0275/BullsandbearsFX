@@ -8,7 +8,7 @@ import { API_URL, getHeaders } from './apiService';
 export const getRedirectPath = (role: string): string => {
   switch (role) {
     case 'SUPER_ADMIN':
-      return '/super-admin';
+      return '/superadmin';
     case 'TENANT_ADMIN':
       return '/admin';
     case 'INVESTOR':
@@ -73,17 +73,23 @@ export const authService = {
     localStorage.removeItem('user_data');
   },
 
+  /**
+   * Retrieves the current authenticated user from local storage.
+   * Gracefully handles corrupted data or missing sessions.
+   */
   getCurrentUser() {
+    const user = localStorage.getItem('user_data');
+    
+    // Explicitly check for null, empty, or placeholder strings
+    if (!user || user === 'undefined' || user === 'null') {
+      return null;
+    }
+
     try {
-      const user = localStorage.getItem('user_data');
-      // Explicitly check for null, empty, or the literal string "undefined"
-      if (!user || user === 'undefined' || user === 'null') {
-        return null;
-      }
       return JSON.parse(user);
-    } catch (e) {
-      // If parsing fails, the data is corrupted. Clear it to prevent repeat errors.
-      console.warn("Corrupted user data found in storage. Clearing session.");
+    } catch (error) {
+      // Log a warning and perform a cleanup if the JSON is malformed
+      console.warn("Corrupted session data detected. Performing security cleanup.");
       localStorage.removeItem('user_data');
       localStorage.removeItem('auth_token');
       return null;
