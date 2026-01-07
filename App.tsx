@@ -616,12 +616,20 @@ const InvestorDashboard = ({ user, onLogout }: any) => {
     const loadData = async () => {
       try {
         setLoading(true);
+        console.log('Loading investor dashboard...');
         const data = await dashboardService.getInvestorDashboard();
+        console.log('Dashboard data received:', data);
+        
+        if (!data) {
+          throw new Error('No dashboard data returned from server');
+        }
+        
         setDashboardData(data);
         setError(null);
       } catch (err: any) {
         console.error('Failed to load investor dashboard:', err);
-        setError(err.message || 'Failed to load dashboard data');
+        console.error('Error details:', err.message, err.stack);
+        setError(err.message || 'Failed to load dashboard data. Please refresh the page.');
       } finally {
         setLoading(false);
       }
@@ -653,8 +661,15 @@ const InvestorDashboard = ({ user, onLogout }: any) => {
   if (!dashboardData) {
     return (
       <DashboardShell title="Investor Dashboard" user={user} onLogout={onLogout}>
-        <div className="text-center py-12">
-          <p className="text-slate-500">No dashboard data available</p>
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-8 text-center">
+          <p className="text-amber-400 font-bold mb-4">Dashboard data is not available</p>
+          <p className="text-slate-500 dark:text-gray-400 text-sm mb-6">This may indicate the backend is not responding or the endpoint is not configured.</p>
+          <button
+            onClick={handleRefreshDashboard}
+            className="px-6 py-2 bg-amber-500 text-black font-bold rounded-lg hover:bg-amber-600 transition-all"
+          >
+            Try Again
+          </button>
         </div>
       </DashboardShell>
     );

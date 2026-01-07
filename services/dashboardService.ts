@@ -52,22 +52,32 @@ export const dashboardService = {
   /**
    * Get investor dashboard data
    * Backend: GET /api/dashboard/investor
+   * Fallback: GET /api/investor/dashboard (alternative pattern)
    * Returns: wallet, investments, transactions, kycStatus, notifications
    */
   async getInvestorDashboard(): Promise<InvestorDashboardData> {
     try {
-      // SIMPLE: Call one backend endpoint
-      const response = await fetch(`${API_URL}/api/dashboard/investor`, {
+      // Try primary endpoint first
+      let response = await fetch(`${API_URL}/api/dashboard/investor`, {
         method: 'GET',
         headers: getHeaders(),
       });
+
+      // If not found, try alternative endpoint pattern
+      if (response.status === 404) {
+        console.warn('Endpoint /api/dashboard/investor not found, trying /api/investor/dashboard');
+        response = await fetch(`${API_URL}/api/investor/dashboard`, {
+          method: 'GET',
+          headers: getHeaders(),
+        });
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
           errorData.error || 
           errorData.message || 
-          'Failed to load dashboard'
+          `Failed to load dashboard (${response.status})`
         );
       }
 
@@ -95,6 +105,7 @@ export const dashboardService = {
       };
     } catch (error: any) {
       console.error('Dashboard API error:', error);
+      console.error('Error stack:', error.stack);
       throw error;
     }
   },
@@ -102,22 +113,32 @@ export const dashboardService = {
   /**
    * Get admin dashboard data (for TENANT_ADMIN and SUPER_ADMIN)
    * Backend: GET /api/dashboard/admin
+   * Fallback: GET /api/admin/dashboard (alternative pattern)
    * Returns: overview, pendingTransactions, kycRequests, investmentStats
    */
   async getAdminDashboard(): Promise<any> {
     try {
-      // SIMPLE: Call one backend endpoint
-      const response = await fetch(`${API_URL}/api/dashboard/admin`, {
+      // Try primary endpoint first
+      let response = await fetch(`${API_URL}/api/dashboard/admin`, {
         method: 'GET',
         headers: getHeaders(),
       });
+
+      // If not found, try alternative endpoint pattern
+      if (response.status === 404) {
+        console.warn('Endpoint /api/dashboard/admin not found, trying /api/admin/dashboard');
+        response = await fetch(`${API_URL}/api/admin/dashboard`, {
+          method: 'GET',
+          headers: getHeaders(),
+        });
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
           errorData.error || 
           errorData.message || 
-          'Failed to load admin dashboard'
+          `Failed to load admin dashboard (${response.status})`
         );
       }
 
@@ -152,21 +173,32 @@ export const dashboardService = {
   /**
    * Get super admin dashboard data
    * Backend: GET /api/dashboard/super-admin
+   * Fallback: GET /api/super-admin/dashboard (alternative pattern)
    * Returns: Platform-wide metrics, user management stats, ROI distribution info
    */
   async getSuperAdminDashboard(): Promise<any> {
     try {
-      const response = await fetch(`${API_URL}/api/dashboard/super-admin`, {
+      // Try primary endpoint first
+      let response = await fetch(`${API_URL}/api/dashboard/super-admin`, {
         method: 'GET',
         headers: getHeaders(),
       });
+
+      // If not found, try alternative endpoint pattern
+      if (response.status === 404) {
+        console.warn('Endpoint /api/dashboard/super-admin not found, trying /api/super-admin/dashboard');
+        response = await fetch(`${API_URL}/api/super-admin/dashboard`, {
+          method: 'GET',
+          headers: getHeaders(),
+        });
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
           errorData.error || 
           errorData.message || 
-          'Failed to load super admin dashboard'
+          `Failed to load super admin dashboard (${response.status})`
         );
       }
 
