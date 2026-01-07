@@ -48,6 +48,10 @@ import {
 import { fetchMarketData } from './services/cryptoService';
 import { getMarketInsights } from './services/aiService';
 import { authService } from './services/authService';
+import { walletService } from './services/walletService';
+import { transactionService } from './services/transactionService';
+import { investmentService } from './services/investmentService';
+import { adminService } from './services/adminService';
 import { CryptoAsset } from './types';
 import { INVESTMENT_PLANS, SERVICES, WHY_CHOOSE_US, FAQS, TESTIMONIALS } from './constants';
 
@@ -275,94 +279,394 @@ const DashboardShell = ({ title, children, user, onLogout }: any) => {
   );
 };
 
-const InvestorDashboard = ({ user, onLogout }: any) => (
-  <DashboardShell title="Investor Dashboard" user={user} onLogout={onLogout}>
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      {[
-        { label: 'Total Equity', value: '$124,500.00', icon: TrendingUp, color: 'emerald' },
-        { label: 'Active Trades', value: '14', icon: Repeat, color: 'blue' },
-        { label: 'ROI (30d)', value: '+8.4%', icon: ArrowUpRight, color: 'amber' }
-      ].map((stat, i) => (
-        <div key={i} className="glass-card p-8 rounded-[2rem] border border-slate-200 dark:border-white/10 shadow-xl shadow-slate-200/20 dark:shadow-none">
-          <div className={`p-3 bg-${stat.color}-500/10 text-${stat.color}-500 w-fit rounded-xl mb-4`}>
-            <stat.icon size={24} />
-          </div>
-          <p className="text-sm text-slate-500 dark:text-gray-400 font-bold uppercase tracking-widest">{stat.label}</p>
-          <p className="text-3xl font-black mt-1 tracking-tight">{stat.value}</p>
-        </div>
-      ))}
-    </div>
-    <div className="mt-8 glass-card rounded-[2.5rem] p-10 h-64 flex items-center justify-center border border-dashed border-slate-300 dark:border-white/10 text-slate-400">
-      Interactive Performance Chart Loading...
-    </div>
-  </DashboardShell>
-);
+const InvestorDashboard = ({ user, onLogout }: any) => {
+  const [wallet, setWallet] = useState<any>(null);
+  const [investments, setInvestments] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-const AdminDashboard = ({ user, onLogout }: any) => (
-  <DashboardShell title="Tenant Administration" user={user} onLogout={onLogout}>
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-      {[
-        { label: 'Total Clients', value: '1,240', icon: Users },
-        { label: 'Revenue (MTD)', value: '$542,000', icon: BarChart3 },
-        { label: 'Approval Queue', value: '12', icon: Clock },
-        { label: 'System Health', value: '99.9%', icon: Zap }
-      ].map((stat, i) => (
-        <div key={i} className="glass-card p-6 rounded-[2rem] border border-slate-200 dark:border-white/10">
-          <p className="text-xs text-slate-400 font-black uppercase mb-1 tracking-widest">{stat.label}</p>
-          <p className="text-2xl font-black">{stat.value}</p>
-        </div>
-      ))}
-    </div>
-    <div className="mt-8 p-10 glass-card rounded-[2.5rem] border border-slate-200 dark:border-white/10">
-      <h3 className="text-xl font-bold mb-6">Recent Transactions</h3>
-      <div className="space-y-4">
-        {[1,2,3,4,5].map(i => (
-          <div key={i} className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-2xl">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-blue-500/20 rounded-full flex items-center justify-center text-blue-500"><User size={18} /></div>
-              <div><p className="font-bold text-sm">Transaction #{1000 + i}</p><p className="text-xs text-slate-500">2 minutes ago</p></div>
-            </div>
-            <p className="font-bold text-emerald-500">+$2,500.00</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  </DashboardShell>
-);
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const [walletData, investmentsData, transactionsData] = await Promise.all([
+          walletService.getWallet(),
+          investmentService.listInvestments(),
+          transactionService.listTransactions(1, 10)
+        ]);
 
-const SuperAdminDashboard = ({ user, onLogout }: any) => (
-  <DashboardShell title="Super-Admin Core" user={user} onLogout={onLogout}>
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      <div className="lg:col-span-2 space-y-8">
-         <div className="p-8 bg-amber-500 text-black rounded-[2.5rem] shadow-2xl shadow-amber-500/20">
-            <h3 className="text-2xl font-black mb-2">Global Platform Status</h3>
-            <p className="font-medium opacity-80 mb-6">All server clusters operating at peak performance across 4 regions.</p>
-            <button className="px-6 py-3 bg-black text-white rounded-xl font-bold flex items-center gap-2 hover:scale-105 transition-transform"><Shield size={20} /> Server Logs</button>
-         </div>
-         <div className="glass-card p-8 rounded-[2.5rem] border border-slate-200 dark:border-white/10">
-            <h3 className="text-xl font-bold mb-6">Tenant Accounts</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-white/5"><th className="pb-4 text-xs font-black uppercase text-slate-400">Tenant</th><th className="pb-4 text-xs font-black uppercase text-slate-400">Status</th><th className="pb-4 text-xs font-black uppercase text-slate-400">Actions</th></tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-slate-200 dark:border-white/5"><td className="py-4 font-bold">BullsandbearsFx</td><td><span className="px-3 py-1 bg-emerald-500/10 text-emerald-500 text-[10px] font-black rounded-full uppercase">Active</span></td><td className="py-4"><button className="text-amber-500 font-bold text-sm">Manage</button></td></tr>
-                  <tr className="border-b border-slate-200 dark:border-white/5"><td className="py-4 font-bold">ZenithTrade</td><td><span className="px-3 py-1 bg-emerald-500/10 text-emerald-500 text-[10px] font-black rounded-full uppercase">Active</span></td><td className="py-4"><button className="text-amber-500 font-bold text-sm">Manage</button></td></tr>
-                </tbody>
-              </table>
-            </div>
-         </div>
-      </div>
-      <div className="space-y-6">
-        <div className="glass-card p-6 rounded-[2rem] border border-slate-200 dark:border-white/10">
-          <h4 className="font-bold flex items-center gap-2 mb-4"><Settings size={18} /> Global Config</h4>
-          <p className="text-xs text-slate-500 leading-relaxed">Update platform-wide maintenance windows or fee structures from here.</p>
+        setWallet(walletData.wallet);
+        setInvestments(investmentsData.investments || []);
+        setTransactions(walletData.transactions || []);
+        setError(null);
+      } catch (err: any) {
+        console.error('Failed to load investor data:', err);
+        setError(err.message || 'Failed to load dashboard data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  return (
+    <DashboardShell title="Investor Dashboard" user={user} onLogout={onLogout}>
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="animate-spin text-amber-500" size={40} />
         </div>
-      </div>
-    </div>
-  </DashboardShell>
-);
+      ) : error ? (
+        <div className="p-6 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500">
+          <p className="font-bold">{error}</p>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { label: 'Wallet Balance', value: `$${wallet?.balance?.toFixed(2) || '0.00'}`, icon: CreditCard, color: 'emerald' },
+              { label: 'Active Investments', value: investments.filter(inv => inv.status === 'ACTIVE').length.toString(), icon: Repeat, color: 'blue' },
+              { label: 'Expected Returns', value: `$${investments.reduce((sum, inv) => sum + (inv.expectedReturn || 0), 0).toFixed(2)}`, icon: ArrowUpRight, color: 'amber' }
+            ].map((stat, i) => (
+              <div key={i} className="glass-card p-8 rounded-[2rem] border border-slate-200 dark:border-white/10 shadow-xl shadow-slate-200/20 dark:shadow-none">
+                <div className={`p-3 bg-${stat.color}-500/10 text-${stat.color}-500 w-fit rounded-xl mb-4`}>
+                  <stat.icon size={24} />
+                </div>
+                <p className="text-sm text-slate-500 dark:text-gray-400 font-bold uppercase tracking-widest">{stat.label}</p>
+                <p className="text-3xl font-black mt-1 tracking-tight">{stat.value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="glass-card rounded-[2.5rem] p-8 border border-slate-200 dark:border-white/10">
+              <h3 className="text-xl font-bold mb-6">Recent Investments</h3>
+              <div className="space-y-4">
+                {investments.slice(0, 5).length > 0 ? (
+                  investments.slice(0, 5).map((inv) => (
+                    <div key={inv.id} className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-2xl">
+                      <div>
+                        <p className="font-bold text-sm">{inv.planName}</p>
+                        <p className="text-xs text-slate-500">Status: <span className={inv.status === 'ACTIVE' ? 'text-emerald-500' : 'text-slate-400'}>{inv.status}</span></p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-amber-500">${inv.amount.toFixed(2)}</p>
+                        <p className="text-xs text-slate-500">{inv.roiPercentage}% ROI</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-slate-500 text-center py-6">No investments yet</p>
+                )}
+              </div>
+            </div>
+
+            <div className="glass-card rounded-[2.5rem] p-8 border border-slate-200 dark:border-white/10">
+              <h3 className="text-xl font-bold mb-6">Transaction History</h3>
+              <div className="space-y-4">
+                {transactions.slice(0, 5).length > 0 ? (
+                  transactions.slice(0, 5).map((txn) => (
+                    <div key={txn.id} className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-2xl">
+                      <div>
+                        <p className="font-bold text-sm">{txn.type}</p>
+                        <p className="text-xs text-slate-500">{new Date(txn.createdAt).toLocaleDateString()}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className={`font-bold ${txn.type.includes('CREDIT') ? 'text-emerald-500' : 'text-red-500'}`}>
+                          {txn.type.includes('CREDIT') ? '+' : '-'}${txn.amount.toFixed(2)}
+                        </p>
+                        <p className={`text-xs ${txn.status === 'APPROVED' ? 'text-emerald-500' : txn.status === 'PENDING' ? 'text-amber-500' : 'text-red-500'}`}>{txn.status}</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-slate-500 text-center py-6">No transactions yet</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </DashboardShell>
+  );
+};
+
+const AdminDashboard = ({ user, onLogout }: any) => {
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [approving, setApproving] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const statsData = await adminService.getStats();
+        setStats(statsData);
+        setError(null);
+      } catch (err: any) {
+        console.error('Failed to load admin stats:', err);
+        setError(err.message || 'Failed to load admin dashboard');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  const handleApproveTransaction = async (transactionId: string) => {
+    try {
+      setApproving(transactionId);
+      await transactionService.approveTransaction(transactionId);
+      // Reload stats
+      const statsData = await adminService.getStats();
+      setStats(statsData);
+    } catch (err: any) {
+      console.error('Failed to approve:', err);
+    } finally {
+      setApproving(null);
+    }
+  };
+
+  return (
+    <DashboardShell title="Tenant Administration" user={user} onLogout={onLogout}>
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="animate-spin text-amber-500" size={40} />
+        </div>
+      ) : error ? (
+        <div className="p-6 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500">
+          <p className="font-bold">{error}</p>
+        </div>
+      ) : stats ? (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            {[
+              { label: 'Total Clients', value: stats.overview.totalUsers.toString(), icon: Users },
+              { label: 'Total AUM', value: `$${(stats.overview.totalAUM / 1000000).toFixed(1)}M`, icon: BarChart3 },
+              { label: 'Pending Approvals', value: stats.transactions.pending.count.toString(), icon: Clock },
+              { label: 'Total Approved', value: stats.transactions.approved.toString(), icon: CheckCircle2 }
+            ].map((stat, i) => (
+              <div key={i} className="glass-card p-6 rounded-[2rem] border border-slate-200 dark:border-white/10">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500">
+                    <stat.icon size={20} />
+                  </div>
+                  <p className="text-xs text-slate-400 font-black uppercase tracking-widest">{stat.label}</p>
+                </div>
+                <p className="text-2xl font-black">{stat.value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-8 p-8 glass-card rounded-[2.5rem] border border-slate-200 dark:border-white/10">
+            <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+              <Clock size={20} /> Pending Transactions ({stats.transactions.pending.count})
+            </h3>
+            {stats.transactions.pending.details.length > 0 ? (
+              <div className="space-y-4">
+                {stats.transactions.pending.details.slice(0, 10).map((txn: any) => (
+                  <div key={txn.id} className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-2xl">
+                    <div className="flex items-center gap-4 flex-grow">
+                      <div className="w-10 h-10 bg-blue-500/20 rounded-full flex items-center justify-center text-blue-500">
+                        <CreditCard size={18} />
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm">{txn.type}</p>
+                        <p className="text-xs text-slate-500">{new Date(txn.createdAt).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <p className="font-bold">${txn.amount.toFixed(2)}</p>
+                        <p className="text-xs text-amber-500 font-semibold">{txn.status}</p>
+                      </div>
+                      <button
+                        onClick={() => handleApproveTransaction(txn.id)}
+                        disabled={approving === txn.id}
+                        className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl transition-all disabled:opacity-50"
+                      >
+                        {approving === txn.id ? <Loader2 size={16} className="animate-spin" /> : 'Approve'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-slate-500 text-center py-6">No pending transactions</p>
+            )}
+          </div>
+
+          <div className="mt-8 p-8 glass-card rounded-[2.5rem] border border-slate-200 dark:border-white/10">
+            <h3 className="text-xl font-bold mb-6">Active Investments</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {[
+                { label: 'Active', value: stats.investments.active.toString(), color: 'emerald' },
+                { label: 'Completed', value: stats.investments.completed.toString(), color: 'blue' },
+                { label: 'Expected Returns', value: `$${(stats.overview.totalExpectedReturns / 1000).toFixed(1)}K`, color: 'amber' }
+              ].map((item, i) => (
+                <div key={i} className={`p-6 bg-${item.color}-500/10 rounded-2xl border border-${item.color}-500/20`}>
+                  <p className={`text-sm font-bold text-${item.color}-600 dark:text-${item.color}-400 uppercase tracking-widest mb-2`}>{item.label}</p>
+                  <p className="text-3xl font-black">{item.value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      ) : null}
+    </DashboardShell>
+  );
+};
+
+const SuperAdminDashboard = ({ user, onLogout }: any) => {
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [distributing, setDistributing] = useState(false);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const statsData = await adminService.getStats();
+        setStats(statsData);
+        setError(null);
+      } catch (err: any) {
+        console.error('Failed to load super admin stats:', err);
+        setError(err.message || 'Failed to load dashboard');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  const handleDistributeROI = async () => {
+    try {
+      setDistributing(true);
+      const result = await adminService.distributeROI();
+      alert(`ROI Distributed: ${result.distributed.count} investments, $${result.distributed.totalAmount.toFixed(2)}`);
+      // Reload stats
+      const statsData = await adminService.getStats();
+      setStats(statsData);
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setDistributing(false);
+    }
+  };
+
+  return (
+    <DashboardShell title="Super-Admin Core" user={user} onLogout={onLogout}>
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="animate-spin text-amber-500" size={40} />
+        </div>
+      ) : error ? (
+        <div className="p-6 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500">
+          <p className="font-bold">{error}</p>
+        </div>
+      ) : stats ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-8">
+            <div className="p-8 bg-amber-500 text-black rounded-[2.5rem] shadow-2xl shadow-amber-500/20">
+              <h3 className="text-2xl font-black mb-2">Global Platform Status</h3>
+              <p className="font-medium opacity-80 mb-6">
+                {stats.overview.totalUsers} users • ${(stats.overview.totalAUM / 1000000).toFixed(1)}M AUM • {stats.investments.active} active investments
+              </p>
+              <button
+                onClick={handleDistributeROI}
+                disabled={distributing}
+                className="px-6 py-3 bg-black text-white rounded-xl font-bold flex items-center gap-2 hover:scale-105 transition-transform disabled:opacity-50"
+              >
+                {distributing ? <Loader2 size={18} className="animate-spin" /> : <Shield size={20} />}
+                {distributing ? 'Distributing ROI...' : 'Distribute ROI'}
+              </button>
+            </div>
+
+            <div className="glass-card p-8 rounded-[2.5rem] border border-slate-200 dark:border-white/10">
+              <h3 className="text-xl font-bold mb-6">Platform Metrics</h3>
+              <div className="grid grid-cols-3 gap-4">
+                {[
+                  { label: 'Total Users', value: stats.overview.totalUsers.toString() },
+                  { label: 'Total AUM', value: `$${(stats.overview.totalAUM / 1000000).toFixed(1)}M` },
+                  { label: 'Expected Returns', value: `$${(stats.overview.totalExpectedReturns / 1000000).toFixed(1)}M` }
+                ].map((metric, i) => (
+                  <div key={i} className="p-4 bg-slate-100 dark:bg-white/5 rounded-xl">
+                    <p className="text-xs text-slate-500 font-bold uppercase mb-1">{metric.label}</p>
+                    <p className="text-lg font-black">{metric.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="glass-card p-8 rounded-[2.5rem] border border-slate-200 dark:border-white/10">
+              <h3 className="text-xl font-bold mb-6">Investment Overview</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-white/5">
+                      <th className="pb-3 font-black text-slate-400">Status</th>
+                      <th className="pb-3 font-black text-slate-400">Count</th>
+                      <th className="pb-3 font-black text-slate-400">Avg Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      { status: 'Active', count: stats.investments.active, total: stats.investments.activeDetails.reduce((s: number, i: any) => s + i.amount, 0) },
+                      { status: 'Completed', count: stats.investments.completed, total: 0 }
+                    ].map((row) => (
+                      <tr key={row.status} className="border-b border-slate-200 dark:border-white/5">
+                        <td className="py-3 font-bold">{row.status}</td>
+                        <td className="py-3">{row.count}</td>
+                        <td className="py-3">${row.count > 0 ? (row.total / row.count).toFixed(2) : '0.00'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div className="glass-card p-6 rounded-[2rem] border border-slate-200 dark:border-white/10">
+              <h4 className="font-bold flex items-center gap-2 mb-4"><Settings size={18} /> Platform Config</h4>
+              <p className="text-xs text-slate-500 leading-relaxed mb-4">
+                Manage global settings, ROI distribution schedules, and payment addresses from the admin dashboard.
+              </p>
+              <div className="space-y-2 text-sm">
+                <p className="flex items-center gap-2"><span className="text-emerald-500">✓</span> Multi-tenant support</p>
+                <p className="flex items-center gap-2"><span className="text-emerald-500">✓</span> Crypto payments</p>
+                <p className="flex items-center gap-2"><span className="text-emerald-500">✓</span> ROI automation</p>
+              </div>
+            </div>
+
+            <div className="glass-card p-6 rounded-[2rem] border border-slate-200 dark:border-white/10">
+              <h4 className="font-bold flex items-center gap-2 mb-4"><BarChart3 size={18} /> Quick Stats</h4>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center p-3 bg-slate-100 dark:bg-white/5 rounded-lg">
+                  <span className="text-xs font-bold text-slate-500">Pending</span>
+                  <span className="text-lg font-black text-amber-500">{stats.transactions.pending.count}</span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-slate-100 dark:bg-white/5 rounded-lg">
+                  <span className="text-xs font-bold text-slate-500">Approved</span>
+                  <span className="text-lg font-black text-emerald-500">{stats.transactions.approved}</span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-slate-100 dark:bg-white/5 rounded-lg">
+                  <span className="text-xs font-bold text-slate-500">Rejected</span>
+                  <span className="text-lg font-black text-red-500">{stats.transactions.rejected}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </DashboardShell>
+  );
+};
 
 const LandingPage = ({ isDarkMode, setIsDarkMode, user, onLogout, setAuthModal, aiInsight, marketData }: any) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -636,13 +940,10 @@ const AppContent: React.FC<{
   const location = useLocation();
 
   useEffect(() => {
-    if (!isInitializing && user) {
+    // Redirect authenticated users from landing page to role-based dashboard
+    if (!isInitializing && user && location.pathname === '/') {
       const redirectPath = authService.getRedirectPath(user.role);
-
-      // Only redirect from public pages
-      if (location.pathname === '/' || location.pathname === '/login') {
-        navigate(redirectPath, { replace: true });
-      }
+      navigate(redirectPath, { replace: true });
     }
   }, [user, isInitializing, location.pathname, navigate]);
 
