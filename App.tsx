@@ -57,6 +57,7 @@ import { INVESTMENT_PLANS, SERVICES, WHY_CHOOSE_US, FAQS, TESTIMONIALS } from '.
 
 /**
  * Higher-order component to protect routes based on authentication and roles.
+ * Handles case-insensitive role matching and provides clear access denial.
  */
 const ProtectedRoute = ({ 
   children, 
@@ -67,12 +68,21 @@ const ProtectedRoute = ({
   user: any,
   allowedRoles?: string[] 
 }) => {
+  // Redirect unauthenticated users
   if (!user) {
+    console.warn('Access denied: No authenticated user');
     return <Navigate to="/" replace />;
   }
 
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/" replace />;
+  // Check if user has required role (case-insensitive comparison)
+  if (allowedRoles && allowedRoles.length > 0) {
+    const userRole = user.role?.toUpperCase() || '';
+    const normalizedAllowedRoles = allowedRoles.map(r => r.toUpperCase());
+    
+    if (!normalizedAllowedRoles.includes(userRole)) {
+      console.warn(`Access denied: User role '${user.role}' not in allowed roles:`, allowedRoles);
+      return <Navigate to="/" replace />;
+    }
   }
 
   return children;
@@ -728,8 +738,55 @@ const LandingPage = ({ isDarkMode, setIsDarkMode, user, onLogout, setAuthModal, 
         </div>
       </nav>
 
+      {/* Mobile Navigation Menu */}
+      {isMenuOpen && (
+        <div className="fixed top-[73px] left-0 right-0 z-40 lg:hidden bg-white dark:bg-[#05070a] border-b border-slate-200 dark:border-white/5 shadow-xl animate-in slide-in-from-top duration-200">
+          <div className="max-w-7xl mx-auto flex flex-col p-6 gap-4">
+            <a href="#home" onClick={(e) => scrollToSection(e, '#home')} className="py-3 px-4 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg text-slate-700 dark:text-gray-300 font-medium transition-colors">Home</a>
+            <a href="#services" onClick={(e) => scrollToSection(e, '#services')} className="py-3 px-4 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg text-slate-700 dark:text-gray-300 font-medium transition-colors">Services</a>
+            <a href="#plans" onClick={(e) => scrollToSection(e, '#plans')} className="py-3 px-4 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg text-slate-700 dark:text-gray-300 font-medium transition-colors">Plans</a>
+            <a href="#referrals" onClick={(e) => scrollToSection(e, '#referrals')} className="py-3 px-4 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg text-slate-700 dark:text-gray-300 font-medium transition-colors">Referrals</a>
+            <a href="#contact" onClick={(e) => scrollToSection(e, '#contact')} className="py-3 px-4 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg text-slate-700 dark:text-gray-300 font-medium transition-colors">Contact</a>
+            <div className="border-t border-slate-200 dark:border-white/5 pt-4 mt-2 space-y-2">
+              <button onClick={() => { setIsDarkMode(!isDarkMode); setIsMenuOpen(false); }} className="w-full py-3 px-4 rounded-lg bg-slate-100 dark:bg-white/5 flex items-center gap-2 justify-center font-medium transition-colors">
+                {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+                {isDarkMode ? 'Light Mode' : 'Dark Mode'}
+              </button>
+              {user ? (
+                <button onClick={() => { navigate(authService.getRedirectPath(user.role)); setIsMenuOpen(false); }} className="w-full py-3 px-4 rounded-lg bg-amber-500 text-black font-bold hover:bg-amber-600 transition-colors">Dashboard</button>
+              ) : (
+                <>
+                  <button onClick={() => { setAuthModal({ isOpen: true, mode: 'login' }); setIsMenuOpen(false); }} className="w-full py-3 px-4 rounded-lg text-slate-900 dark:text-white font-bold hover:bg-slate-100 dark:hover:bg-white/5 transition-colors">Sign In</button>
+                  <button onClick={() => { setAuthModal({ isOpen: true, mode: 'signup' }); setIsMenuOpen(false); }} className="w-full py-3 px-4 rounded-lg bg-amber-500 text-black font-bold hover:bg-amber-600 transition-colors">Get Started</button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hero & Market Ticker */}
       <section id="home" className="pt-32 pb-20 px-6">
+        {/* Live Market Ticker */}
+        {marketData && marketData.length > 0 && (
+          <div className="max-w-7xl mx-auto mb-16 overflow-hidden rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/5">
+            <div className="flex gap-8 px-6 py-4 overflow-x-auto scrollbar-hide animate-scroll">
+              {marketData.slice(0, 10).map((asset, idx) => (
+                <div key={idx} className="flex-shrink-0 flex items-center gap-4 min-w-max">
+                  <img src={asset.image} alt={asset.name} className="w-8 h-8 rounded-full" />
+                  <div className="flex flex-col">
+                    <span className="font-bold text-sm">{asset.symbol.toUpperCase()}</span>
+                    <span className="text-xs text-slate-500">${asset.current_price.toFixed(2)}</span>
+                  </div>
+                  <div className={`text-xs font-bold ${asset.price_change_percentage_24h >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                    {asset.price_change_percentage_24h >= 0 ? '+' : ''}{asset.price_change_percentage_24h.toFixed(2)}%
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-16">
           <div className="flex-1 space-y-8">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs font-black uppercase tracking-widest animate-pulse">
