@@ -44,16 +44,20 @@ export interface InvestorDashboardData {
 /**
  * Dashboard service for fetching dashboard data for different user roles.
  * Centralizes all dashboard API calls and data transformations.
+ * 
+ * NOTE: This is the SINGLE SOURCE OF TRUTH for all dashboard data.
+ * Each method calls ONE backend endpoint and returns the response with fallbacks.
  */
 export const dashboardService = {
   /**
    * Get investor dashboard data
-   * Backend: GET /api/dashboard/investor
-   * Returns: Complete dashboard overview with wallet, investments, transactions, KYC status
+   * Backend: GET /api/investor/dashboard
+   * Returns: wallet, investments, transactions, kycStatus, notifications
    */
   async getInvestorDashboard(): Promise<InvestorDashboardData> {
     try {
-      const response = await fetch(`${API_URL}/api/dashboard/investor`, {
+      // SIMPLE: Call one backend endpoint
+      const response = await fetch(`${API_URL}/api/investor/dashboard`, {
         method: 'GET',
         headers: getHeaders(),
       });
@@ -63,32 +67,34 @@ export const dashboardService = {
         throw new Error(
           errorData.error || 
           errorData.message || 
-          'Failed to load dashboard data'
+          'Failed to load dashboard'
         );
       }
 
       const data = await response.json();
+      console.log('Investor dashboard data:', data); // Debug log
       
-      // Ensure consistent data structure (fallback to defaults if fields missing)
+      // Map backend response to component expectations
+      // Backend can return in any format - we normalize it here
       return {
-        wallet: data.wallet || {
+        wallet: data.wallet || data.walletData || {
           id: '',
           balance: 0,
           totalInvested: 0,
           totalEarned: 0,
         },
-        investments: data.investments || {
+        investments: data.investments || data.investmentData || {
           active: 0,
           completed: 0,
           totalValue: 0,
         },
-        transactions: Array.isArray(data.transactions) ? data.transactions : [],
+        transactions: Array.isArray(data.transactions) ? data.transactions : Array.isArray(data.transactionHistory) ? data.transactionHistory : [],
         kycStatus: data.kycStatus || 'NOT_SUBMITTED',
         unreadNotifications: data.unreadNotifications || 0,
         paymentAddresses: Array.isArray(data.paymentAddresses) ? data.paymentAddresses : [],
       };
     } catch (error: any) {
-      console.error('Failed to fetch investor dashboard:', error.message);
+      console.error('Dashboard API error:', error);
       throw error;
     }
   },
@@ -96,10 +102,11 @@ export const dashboardService = {
   /**
    * Get admin dashboard data (for TENANT_ADMIN and SUPER_ADMIN)
    * Backend: GET /api/admin/dashboard
-   * Returns: Overview statistics, pending transactions, pending KYC requests, investment stats
+   * Returns: overview, pendingTransactions, kycRequests, investmentStats
    */
   async getAdminDashboard(): Promise<any> {
     try {
+      // SIMPLE: Call one backend endpoint
       const response = await fetch(`${API_URL}/api/admin/dashboard`, {
         method: 'GET',
         headers: getHeaders(),
@@ -115,28 +122,29 @@ export const dashboardService = {
       }
 
       const data = await response.json();
+      console.log('Admin dashboard data:', data); // Debug log
       
-      // Ensure consistent structure
+      // Map backend response - handle various response formats
       return {
-        overview: data.overview || {
+        overview: data.overview || data.stats || {
           totalUsers: 0,
+          totalAUM: 0,
           totalInvested: 0,
           totalEarned: 0,
           activeInvestments: 0,
         },
-        pendingTransactions: data.pendingTransactions || {
-          deposits: 0,
-          withdrawals: 0,
-        },
-        pendingKyc: data.pendingKyc || 0,
+        pendingTransactions: Array.isArray(data.pendingTransactions) ? data.pendingTransactions : Array.isArray(data.transactions?.pending?.details) ? data.transactions.pending.details : [],
+        pendingKyc: Array.isArray(data.kycRequests) ? data.kycRequests.length : data.pendingKyc || 0,
+        kycRequests: Array.isArray(data.kycRequests) ? data.kycRequests : [],
         recentInvestments: Array.isArray(data.recentInvestments) ? data.recentInvestments : [],
-        investmentStats: data.investmentStats || {
-          byPlan: {},
-          totalValue: 0,
+        investmentStats: data.investmentStats || data.investments || {
+          active: 0,
+          completed: 0,
+          activeDetails: [],
         },
       };
     } catch (error: any) {
-      console.error('Failed to fetch admin dashboard:', error.message);
+      console.error('Admin dashboard API error:', error);
       throw error;
     }
   },

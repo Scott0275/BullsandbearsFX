@@ -1911,8 +1911,7 @@ const ReferralDashboard = ({ user, onLogout }: any) => {
 
 const AdminDashboard = ({ user, onLogout }: any) => {
   const navigate = useNavigate();
-  const [stats, setStats] = useState<any>(null);
-  const [kycRequests, setKycRequests] = useState<any[]>([]);
+  const [dashboardData, setDashboardData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [approving, setApproving] = useState<string | null>(null);
@@ -1923,15 +1922,11 @@ const AdminDashboard = ({ user, onLogout }: any) => {
     const loadData = async () => {
       try {
         setLoading(true);
-        const [statsData, kycData] = await Promise.all([
-          adminService.getStats(),
-          kycService.listKYCRequests(1, 10)
-        ]);
-        setStats(statsData);
-        setKycRequests(kycData.items || []);
+        const data = await dashboardService.getAdminDashboard();
+        setDashboardData(data);
         setError(null);
       } catch (err: any) {
-        console.error('Failed to load admin data:', err);
+        console.error('Failed to load admin dashboard:', err);
         setError(err.message || 'Failed to load admin dashboard');
       } finally {
         setLoading(false);
@@ -1945,9 +1940,9 @@ const AdminDashboard = ({ user, onLogout }: any) => {
     try {
       setApproving(transactionId);
       await transactionService.approveTransaction(transactionId);
-      // Reload stats
-      const statsData = await adminService.getStats();
-      setStats(statsData);
+      // Reload dashboard
+      const data = await dashboardService.getAdminDashboard();
+      setDashboardData(data);
     } catch (err: any) {
       console.error('Failed to approve transaction:', err);
       alert(err.message);
@@ -1960,9 +1955,9 @@ const AdminDashboard = ({ user, onLogout }: any) => {
     try {
       setApproving(kycRequestId);
       await kycService.approveKYC(kycRequestId);
-      // Reload KYC requests
-      const kycData = await kycService.listKYCRequests(1, 10);
-      setKycRequests(kycData.items || []);
+      // Reload dashboard
+      const data = await dashboardService.getAdminDashboard();
+      setDashboardData(data);
       alert('KYC request approved successfully');
     } catch (err: any) {
       console.error('Failed to approve KYC:', err);
@@ -1982,9 +1977,9 @@ const AdminDashboard = ({ user, onLogout }: any) => {
     try {
       setRejecting(kycRequestId);
       await kycService.rejectKYC(kycRequestId, reason);
-      // Reload KYC requests
-      const kycData = await kycService.listKYCRequests(1, 10);
-      setKycRequests(kycData.items || []);
+      // Reload dashboard
+      const data = await dashboardService.getAdminDashboard();
+      setDashboardData(data);
       setRejectReason({ ...rejectReason, [kycRequestId]: '' });
       alert('KYC request rejected successfully');
     } catch (err: any) {
@@ -2005,7 +2000,7 @@ const AdminDashboard = ({ user, onLogout }: any) => {
         <div className="p-6 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500">
           <p className="font-bold">{error}</p>
         </div>
-      ) : stats ? (
+      ) : dashboardData ? (
         <>
           <div className="mb-8 flex items-center justify-between">
             <h2 className="text-3xl font-black">Dashboard Overview</h2>
@@ -2019,10 +2014,10 @@ const AdminDashboard = ({ user, onLogout }: any) => {
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             {[
-              { label: 'Total Clients', value: stats.overview.totalUsers.toString(), icon: Users },
-              { label: 'Total AUM', value: `$${(stats.overview.totalAUM / 1000000).toFixed(1)}M`, icon: BarChart3 },
-              { label: 'Pending Approvals', value: stats.transactions.pending.count.toString(), icon: Clock },
-              { label: 'Pending KYC', value: kycRequests.length.toString(), icon: ShieldAlert }
+              { label: 'Total Clients', value: dashboardData.overview?.totalUsers?.toString() || '0', icon: Users },
+              { label: 'Total AUM', value: `$${((dashboardData.overview?.totalInvested || 0) / 1000000).toFixed(1)}M`, icon: BarChart3 },
+              { label: 'Pending Approvals', value: (dashboardData.pendingTransactions?.length || 0).toString(), icon: Clock },
+              { label: 'Pending KYC', value: (dashboardData.pendingKyc || 0).toString(), icon: ShieldAlert }
             ].map((stat, i) => (
               <div key={i} className="glass-card p-6 rounded-[2rem] border border-slate-200 dark:border-white/10">
                 <div className="flex items-center gap-3 mb-3">
@@ -2039,11 +2034,11 @@ const AdminDashboard = ({ user, onLogout }: any) => {
           {/* KYC Requests Queue */}
           <div className="mb-8 p-8 glass-card rounded-[2.5rem] border border-slate-200 dark:border-white/10">
             <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-              <ShieldCheck size={20} /> KYC Verification Requests ({kycRequests.length})
+              <ShieldCheck size={20} /> KYC Verification Requests ({dashboardData.pendingKyc || 0})
             </h3>
-            {kycRequests.length > 0 ? (
+            {dashboardData.kycRequests && dashboardData.kycRequests.length > 0 ? (
               <div className="space-y-4 max-h-96 overflow-y-auto scrollbar-hide">
-                {kycRequests.map((kyc: any) => (
+                {dashboardData.kycRequests.map((kyc: any) => (
                   <div key={kyc.id} className="p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
                     <div className="flex items-center justify-between mb-4">
                       <div>
@@ -2093,11 +2088,11 @@ const AdminDashboard = ({ user, onLogout }: any) => {
           {/* Pending Transactions */}
           <div className="mb-8 p-8 glass-card rounded-[2.5rem] border border-slate-200 dark:border-white/10">
             <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-              <Clock size={20} /> Pending Transactions ({stats.transactions.pending.count})
+              <Clock size={20} /> Pending Transactions ({(dashboardData.pendingTransactions?.length || 0)})
             </h3>
-            {stats.transactions.pending.details.length > 0 ? (
+            {dashboardData.pendingTransactions && dashboardData.pendingTransactions.length > 0 ? (
               <div className="space-y-4 max-h-96 overflow-y-auto scrollbar-hide">
-                {stats.transactions.pending.details.slice(0, 10).map((txn: any) => (
+                {dashboardData.pendingTransactions.slice(0, 10).map((txn: any) => (
                   <div key={txn.id} className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-2xl">
                     <div className="flex items-center gap-4 flex-grow">
                       <div className="w-10 h-10 bg-blue-500/20 rounded-full flex items-center justify-center text-blue-500">
@@ -2134,9 +2129,9 @@ const AdminDashboard = ({ user, onLogout }: any) => {
             <h3 className="text-xl font-bold mb-6">Investment Analytics</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
-                { label: 'Active', value: stats.investments.active.toString(), color: 'emerald' },
-                { label: 'Completed', value: stats.investments.completed.toString(), color: 'blue' },
-                { label: 'Expected Returns', value: `$${(stats.overview.totalExpectedReturns / 1000).toFixed(1)}K`, color: 'amber' }
+                { label: 'Active', value: (dashboardData.investmentStats?.activeInvestments || 0).toString(), color: 'emerald' },
+                { label: 'Completed', value: (dashboardData.investmentStats?.completedInvestments || 0).toString(), color: 'blue' },
+                { label: 'Total Value', value: `$${((dashboardData.investmentStats?.totalValue || 0) / 1000).toFixed(1)}K`, color: 'amber' }
               ].map((item, i) => (
                 <div key={i} className={`p-6 bg-${item.color}-500/10 rounded-2xl border border-${item.color}-500/20`}>
                   <p className={`text-sm font-bold text-${item.color}-600 dark:text-${item.color}-400 uppercase tracking-widest mb-2`}>{item.label}</p>
