@@ -737,12 +737,17 @@ const App: React.FC = () => {
   });
 
   useEffect(() => {
-    // Load user from localStorage on app boot
-    const existingUser = authService.getCurrentUser();
-    if (existingUser) {
-      setUser(existingUser);
-    }
-    setIsInitializing(false);
+    // Load user from localStorage on app boot and refresh from backend
+    const initializeAuth = async () => {
+      const existingUser = authService.getCurrentUser();
+      if (existingUser) {
+        // Refresh from backend to ensure latest user data from database
+        const freshUser = await authService.refreshUserData();
+        setUser(freshUser || existingUser);
+      }
+      setIsInitializing(false);
+    };
+    initializeAuth();
   }, []);
 
   useEffect(() => {

@@ -19,6 +19,7 @@ export const getRedirectPath = (role: string): string => {
 
 /**
  * Service to handle all Authentication flows connecting to the backend API.
+ * Manages JWT token, user data persistence, and session lifecycle.
  */
 export const authService = {
   async signup(data: any) {
@@ -64,6 +65,44 @@ export const authService = {
       console.warn("Login successful but no user data returned from API.");
     }
     return result;
+  },
+
+  /**
+   * Refreshes user data from backend to ensure latest profile information.
+   * Useful on app boot to sync cached localStorage data with live database.
+   * Falls back to cached data if refresh fails.
+   * 
+   * Backend Endpoint: GET /api/auth/me
+   * Requires: Valid auth token in headers
+   */
+  async refreshUserData() {
+    const token = this.getToken();
+    if (!token) {
+      console.warn('No auth token available for refresh');
+      return null;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/api/auth/me`, {
+        method: 'GET',
+        headers: getHeaders(),
+      });
+
+      if (!response.ok) {
+        console.warn('Failed to refresh user data from backend:', response.status);
+        return this.getCurrentUser(); // Fall back to cached data
+      }
+
+      const result = await response.json();
+      if (result.user) {
+        localStorage.setItem('user_data', JSON.stringify(result.user));
+        return result.user;
+      }
+      return this.getCurrentUser();
+    } catch (error) {
+      console.warn('Error refreshing user data:', error);
+      return this.getCurrentUser(); // Fall back to cached data
+    }
   },
 
   getRedirectPath,

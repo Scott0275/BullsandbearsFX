@@ -29,100 +29,132 @@ Services are the primary integration point between the UI and backend APIs:
 // API_URL resolves in order: env var → Vercel production → localhost
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://investment-platform-core.vercel.app';
 
-// getHeaders() automatically includes auth token and tenant slug
-const headers = getHeaders(); // { Authorization: 'Bearer token', X-Tenant-Slug: 'bullsandbearsfx' }
-const headers = getHeaders('custom-token'); // Override token for custom scenarios
+// getHeaders() automatically includes auth token and user context headers
+const headers = getHeaders(); 
+// Returns: { 
+//   Authorization: 'Bearer token',
+//   X-User-ID: 'user123',
+//   X-User-Tenant-ID: 'tenant456',
+//   X-User-Role: 'INVESTOR',
+//   X-Tenant-Slug: 'bullsandbearsfx'
+// }
 ```
 
 **Key Points:**
-- All backend requests include `X-Tenant-Slug: 'bullsandbearsfx'` header (multi-tenant support)
+- All backend requests include `X-User-ID`, `X-User-Tenant-ID`, `X-User-Role` headers (extracted from localStorage user_data)
+- `X-Tenant-Slug: 'bullsandbearsfx'` included for multi-tenant support
 - Auth token auto-injected from localStorage when present
 - Use `getHeaders()` import in all services making backend calls
 
-### Authentication API Pattern
-[authService.ts](services/authService.ts) demonstrates the standard API integration:
+### Authentication Service Pattern
+[authService.ts](services/authService.ts) handles all auth flows with database sync:
 
 ```typescript
+// Login → Backend returns token + user object from database
 async login(data: any) {
   const response = await fetch(`${API_URL}/api/auth/login`, {
     method: 'POST',
-    headers: getHeaders(), // ← Always use getHeaders() for consistency
+    headers: getHeaders(),
     body: JSON.stringify({ email, password }),
   });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || 'Fallback error message');
-  }
-
   const result = await response.json();
-  // Persist critical data for state hydration
   localStorage.setItem('auth_token', result.token);
   localStorage.setItem('user_data', JSON.stringify(result.user));
   return result;
 }
+
+// Refresh user data from backend on app boot
+async refreshUserData() {
+  const response = await fetch(`${API_URL}/api/auth/me`, {
+    method: 'GET',
+    headers: getHeaders(),
+  });
+  const result = await response.json();
+  localStorage.setItem('user_data', JSON.stringify(result.user));
+  return result.user;
+}
 ```
 
 **Integration Pattern:**
-1. Validate response status with `!response.ok` check
-2. Attempt to parse error JSON; provide fallback message
-3. Throw user-friendly errors to calling code
-4. Components catch errors and display in UI, never expose raw API errors
+1. On login, store token + user object (from database)
+2. On app boot, call `refreshUserData()` to sync cached data with live database
+3. All user updates from backend automatically refresh localStorage
+4. Services validate response status with `!response.ok` check
+5. Errors throw user-friendly messages; raw errors logged to console
 
-### External API Integration (Graceful Fallback)
-[cryptoService.ts](services/cryptoService.ts) shows handling third-party APIs with fallback:
-
-```typescript
-export const fetchMarketData = async (): Promise<CryptoAsset[]> => {
-  try {
-    const response = await fetch(
-      'https://api.coingecko.com/api/v3/coins/markets?...',
-      { signal: AbortController ? new AbortController().signal : undefined }
-    );
-    if (!response.ok) throw new Error('API limit reached');
-    const data = await response.json();
-    return data.length > 0 ? data : MOCK_ASSETS; // Fallback to mock if empty
-  } catch (error) {
-    console.warn('Market data fetch failed, using fallback:', error);
-    return MOCK_ASSETS; // ← Graceful degradation
-  }
-};
-```
-
-**Pattern Requirements:**
-- Always catch errors and return fallback data (never let API failures crash)
-- Log errors to console for debugging (don't expose to users)
-- Validate API response structure before returning
-- Consider abort signals for long-running requests
-
-### AI API Integration (Professional Fallback)
-[aiService.ts](services/aiService.ts) integrates Gemini API with professional error handling:
+### Wallet Service Pattern
+[walletService.ts](services/walletService.ts) manages deposits, withdrawals, and balance:
 
 ```typescript
-export const getMarketInsights = async (assets: string) => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) return "AI insights are currently in standby mode..."; // ← Pre-auth fallback
+// Get wallet balance + transaction history
+const wallet = await walletService.getWallet();
+// Returns: { wallet: { id, userId, balance }, transactions: [] }
 
-  try {
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `...${assets}...`,
-      config: { temperature: 0.5 }
-    });
-    return response.text?.trim() || "Market indicators suggest..."; // ← Validate response
-  } catch (error: any) {
-    console.warn("AI insight notice:", error.message); // Log but don't expose
-    return "Institutional liquidity remains high..."; // ← Professional fallback
-  }
-};
+// Request deposit (crypto payment)
+const depositTxn = await walletService.requestDeposit(5000, 'ETH', userWallet);
+// User sees transaction ID + crypto address to send funds to
+// Admin approves when payment verified on blockchain
+// Wallet credited + referral rewards auto-processed
+
+// Request withdrawal
+const withdrawalTxn = await walletService.requestWithdrawal(1000, recipientAddress);
+// Wallet debited when admin approves
 ```
 
-**Integration Pattern:**
-- Check for required environment variables before attempting API calls
-- Always catch and convert errors to professional fallback messages
-- Log raw errors for debugging; never expose to UI
-- Validate API response fields exist before accessing
+**Payment Flow:**
+1. User requests deposit with amount + crypto type
+2. Backend creates PENDING transaction
+3. User sends crypto to provided address (off-chain)
+4. Admin reviews + approves in dashboard
+5. On approval: wallet credited + referral rewards processed
+6. ROI credits also go through this system
+
+### Transaction Service Pattern
+[transactionService.ts](services/transactionService.ts) lists and manages transactions:
+
+```typescript
+// List user transactions (paginated)
+const result = await transactionService.listTransactions(page, limit);
+// Types: DEPOSIT, WITHDRAWAL, INVESTMENT_DEBIT, ROI_CREDIT, REFERRAL_CREDIT
+// Statuses: PENDING, APPROVED, REJECTED
+
+// Admin approve/reject
+await transactionService.approveTransaction(transactionId);
+await transactionService.rejectTransaction(transactionId);
+```
+
+### Investment Service Pattern
+[investmentService.ts](services/investmentService.ts) manages investment lifecycle:
+
+```typescript
+// List all investments (active + completed)
+const investments = await investmentService.listInvestments();
+
+// Create new investment
+const newInvest = await investmentService.createInvestment(planId, amount);
+// Validates: sufficient balance, plan exists, amount in range
+// Creates INVESTMENT_DEBIT transaction (funds moved to investment)
+// ROI will be credited when investment completes
+```
+
+### Admin Service Pattern
+[adminService.ts](services/adminService.ts) for admin operations (TENANT_ADMIN, SUPER_ADMIN):
+
+```typescript
+// Get admin dashboard stats (TENANT_ADMIN+)
+const stats = await adminService.getStats();
+// Returns: overview, investments breakdown, pending transactions
+
+// Manage crypto payment addresses (ADMIN)
+const addresses = await adminService.getPaymentAddresses();
+await adminService.addPaymentAddress('ETH', '0x1234...');
+await adminService.updatePaymentAddress(addressId, { address: newAddr });
+
+// Distribute ROI to completed investments (SUPER_ADMIN only)
+await adminService.distributeROI();
+// Finds all COMPLETED investments, calculates ROI, credits wallets
+// Prevents double-distribution automatically
+```
 
 ### Using Services in Components
 Standard component pattern for API integration:
@@ -132,19 +164,54 @@ Standard component pattern for API integration:
 useEffect(() => {
   const loadData = async () => {
     try {
-      const market = await fetchMarketData();
-      setAssets(market);
+      const wallet = await walletService.getWallet();
+      setBalance(wallet.wallet.balance);
+      setTransactions(wallet.transactions);
     } catch (error) {
-      setError('Failed to load market data');
-      console.error(error);
+      setError('Failed to load wallet');
+      console.error(error); // Log raw error for debugging
     }
   };
   loadData();
 }, []);
 
-// ❌ WRONG: Don't expose auth modal to internal API calls
-// The AuthModal is for user-facing login/signup only
+// ✅ INVESTOR accessing own wallet
+<ProtectedRoute user={user} allowedRoles={['INVESTOR']}>
+  <InvestorDashboard /> {/* Can safely call walletService */}
+</ProtectedRoute>
+
+// ✅ ADMIN accessing stats
+<ProtectedRoute user={user} allowedRoles={['TENANT_ADMIN', 'SUPER_ADMIN']}>
+  <AdminDashboard /> {/* Can safely call adminService.getStats() */}
+</ProtectedRoute>
 ```
+
+### Error Handling
+All services follow consistent error patterns:
+
+```typescript
+try {
+  const response = await fetch(...);
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || errorData.message || 'Fallback error');
+  }
+  return response.json();
+} catch (error: any) {
+  console.error('Operation failed:', error.message); // Log for debugging
+  throw error; // Components handle user-facing messages
+}
+```
+
+**HTTP Status Codes:**
+- `200` - Success (GET requests, approve/reject)
+- `201` - Created (deposits, withdrawals, investments)
+- `400` - Validation error (insufficient balance, invalid amount)
+- `401` - Unauthorized (missing/invalid token)
+- `403` - Forbidden (insufficient role for admin endpoints)
+- `404` - Not found (plan, address, investment)
+- `409` - Conflict (email exists, amount out of range)
+- `500` - Server error
 
 ### Type Safety
 - Core types defined in [types.ts](types.ts): `CryptoAsset`, `Plan`, `Service`, `FAQItem`
@@ -220,5 +287,25 @@ npm run preview      # Preview production build
 ## Files to Review First
 1. [App.tsx](App.tsx) - Main routing logic, authentication state, protected routes
 2. [types.ts](types.ts) - Interface definitions for type safety
-3. [services/authService.ts](services/authService.ts) - Auth flow and user role mapping
-4. [constants.tsx](constants.tsx) - Data structures (plans, services, FAQs, testimonials)
+3. [services/apiService.ts](services/apiService.ts) - API base URL and request headers (foundation for all services)
+4. [services/authService.ts](services/authService.ts) - Auth flow and user role mapping + refreshUserData()
+5. [services/walletService.ts](services/walletService.ts) - Wallet balance, deposits, withdrawals
+6. [services/investmentService.ts](services/investmentService.ts) - Investment lifecycle management
+7. [constants.tsx](constants.tsx) - Data structures (plans, services, FAQs, testimonials)
+
+## Service Architecture Overview
+
+All services follow the same pattern:
+1. **Export interfaces** for TypeScript type safety (request/response bodies)
+2. **Centralized error handling** with `getHeaders()` for auth
+3. **Graceful fallbacks** on API failures (logged to console, user-friendly errors thrown)
+4. **Role-based access control** enforced by ProtectedRoute HOC in components
+
+### Service Files (Complete List)
+- **authService.ts** - Login, signup, token management, user refresh
+- **walletService.ts** - Balance, deposits, withdrawals
+- **transactionService.ts** - Transaction history, admin approve/reject
+- **investmentService.ts** - Investment list, create investments
+- **adminService.ts** - Admin stats, payment addresses, ROI distribution
+- **aiService.ts** - Gemini AI market insights (external API with fallback)
+- **cryptoService.ts** - CoinGecko market data (external API with mock fallback)
