@@ -44,7 +44,13 @@ import {
   Send,
   Share2,
   Quote,
-  Plus
+  Plus,
+  Bell,
+  Copy,
+  AlertCircle,
+  CheckCircle,
+  Gift,
+  ClipboardList
 } from 'lucide-react';
 import { fetchMarketData } from './services/cryptoService';
 import { getMarketInsights } from './services/aiService';
@@ -55,6 +61,8 @@ import { investmentService } from './services/investmentService';
 import { adminService } from './services/adminService';
 import { dashboardService } from './services/dashboardService';
 import { kycService } from './services/kycService';
+import { notificationService } from './services/notificationService';
+import { userService } from './services/userService';
 import { CryptoAsset } from './types';
 import { INVESTMENT_PLANS, SERVICES, WHY_CHOOSE_US, FAQS, TESTIMONIALS } from './constants';
 
@@ -261,7 +269,133 @@ const AuthModal = ({
   );
 };
 
+const NotificationDropdown = ({ user }: any) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+
+  const loadNotifications = async () => {
+    try {
+      setLoading(true);
+      const data = await notificationService.getNotifications(1, 5);
+      setNotifications(data.items || []);
+      setUnreadCount(data.unreadCount || 0);
+    } catch (err: any) {
+      console.error('Failed to load notifications:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      loadNotifications();
+    }
+  }, [isOpen]);
+
+  const handleMarkAsRead = async (notificationId: string) => {
+    try {
+      await notificationService.markAsRead(notificationId);
+      await loadNotifications();
+    } catch (err: any) {
+      console.error('Failed to mark notification as read:', err);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await notificationService.markAllAsRead();
+      await loadNotifications();
+    } catch (err: any) {
+      console.error('Failed to mark all as read:', err);
+    }
+  };
+
+  const getNotificationColor = (type: string) => {
+    if (type.includes('APPROVED')) return 'emerald';
+    if (type.includes('REJECTED')) return 'red';
+    if (type.includes('EARNED') || type.includes('CREDITED')) return 'amber';
+    return 'slate';
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="relative p-2.5 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/20 transition-all"
+      >
+        <Bell size={20} />
+        {unreadCount > 0 && (
+          <span className="absolute top-0 right-0 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-xs font-bold text-white">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-12 right-0 w-96 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-white/10 z-50">
+          <div className="p-4 border-b border-slate-200 dark:border-white/10 flex justify-between items-center">
+            <h3 className="font-bold text-lg">Notifications</h3>
+            {unreadCount > 0 && (
+              <button
+                onClick={handleMarkAllAsRead}
+                className="text-xs font-bold text-amber-500 hover:text-amber-600 transition"
+              >
+                Mark all as read
+              </button>
+            )}
+          </div>
+
+          <div className="max-h-96 overflow-y-auto">
+            {loading ? (
+              <div className="p-8 flex items-center justify-center">
+                <Loader2 className="animate-spin text-amber-500" size={24} />
+              </div>
+            ) : notifications.length > 0 ? (
+              <div className="space-y-2 p-4">
+                {notifications.map((notif) => (
+                  <div
+                    key={notif.id}
+                    className={`p-3 rounded-xl cursor-pointer transition ${
+                      notif.read
+                        ? 'bg-slate-100 dark:bg-white/5'
+                        : 'bg-amber-500/10 dark:bg-amber-500/20 border-l-4 border-amber-500'
+                    }`}
+                    onClick={() => handleMarkAsRead(notif.id)}
+                  >
+                    <div className="flex items-start gap-2">
+                      {notif.type.includes('APPROVED') && <CheckCircle size={16} className="text-emerald-500 flex-shrink-0 mt-0.5" />}
+                      {notif.type.includes('REJECTED') && <AlertCircle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />}
+                      {notif.type.includes('CREDITED') && <Gift size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />}
+                      {!notif.read && <div className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0 mt-1.5" />}
+                      <div className="flex-1">
+                        <p className="text-sm font-bold">{notif.title}</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400">{notif.message}</p>
+                        <p className="text-[10px] text-slate-400 mt-1">
+                          {new Date(notif.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-8 text-center text-slate-500 text-sm">
+                No notifications yet
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {isOpen && <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />}
+    </div>
+  );
+};
+
 const DashboardShell = ({ title, children, user, onLogout }: any) => {
+  const navigate = useNavigate();
   return (
     <div className="min-h-screen bg-white dark:bg-[#05070a] text-slate-900 dark:text-white transition-colors">
       <nav className="fixed top-0 w-full z-50 glass-card border-b border-slate-200 dark:border-white/5 px-6 py-4">
@@ -275,6 +409,13 @@ const DashboardShell = ({ title, children, user, onLogout }: any) => {
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{user?.role?.replace('_', ' ')}</p>
               <p className="text-sm font-bold">{user?.name}</p>
             </div>
+            <NotificationDropdown user={user} />
+            <button 
+              onClick={() => navigate('/profile')} 
+              className="p-2.5 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/20 transition-all"
+            >
+              <User size={20} />
+            </button>
             <button onClick={onLogout} className="p-2.5 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all">
               <LogOut size={20} />
             </button>
@@ -462,10 +603,11 @@ const WithdrawalForm = ({ balance, onSuccess }: any) => {
 };
 
 const InvestorDashboard = ({ user, onLogout }: any) => {
+  const navigate = useNavigate();
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState('overview'); // overview, deposit, withdraw
+  const [activeTab, setActiveTab] = useState('overview'); // overview, deposit, withdraw, referrals
   const [filterType, setFilterType] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [sortBy, setSortBy] = useState('date-desc');
@@ -599,7 +741,8 @@ const InvestorDashboard = ({ user, onLogout }: any) => {
         {[
           { id: 'overview', label: 'Overview', icon: LayoutDashboard },
           { id: 'deposit', label: 'Deposit', icon: ArrowUpRight },
-          { id: 'withdraw', label: 'Withdraw', icon: Send }
+          { id: 'withdraw', label: 'Withdraw', icon: Send },
+          { id: 'referrals', label: 'Referrals', icon: Share2 }
         ].map((tab) => (
           <button
             key={tab.id}
@@ -783,6 +926,20 @@ const InvestorDashboard = ({ user, onLogout }: any) => {
             <p className="text-slate-500 dark:text-gray-400 mb-8 font-medium">Withdraw your available balance. Your request will be reviewed and processed within 24-48 hours.</p>
             <WithdrawalForm balance={wallet?.balance || 0} onSuccess={handleRefreshDashboard} />
           </div>
+        </div>
+      )}
+
+      {activeTab === 'referrals' && (
+        <div className="glass-card rounded-[2.5rem] p-8 border border-slate-200 dark:border-white/10">
+          <button
+            onClick={() => navigate('/referrals')}
+            className="px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl transition-all flex items-center gap-2 mb-6"
+          >
+            <Share2 size={20} /> View Full Referral Dashboard
+          </button>
+          <p className="text-slate-600 dark:text-slate-400">
+            Click the button above to access your complete referral program dashboard with detailed analytics, referral statistics, and earning tracking.
+          </p>
         </div>
       )}
     </DashboardShell>
@@ -1302,6 +1459,452 @@ const AdminSettings = ({ user, onLogout }: any) => {
           )}
         </>
       )}
+    </DashboardShell>
+  );
+};
+
+const UserProfile = ({ user, onLogout }: any) => {
+  const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [formData, setFormData] = useState({ name: '', email: '', phone: '', address: '', city: '', country: '' });
+  const [passwordMode, setPasswordMode] = useState(false);
+  const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        setLoading(true);
+        const data = await userService.getProfile();
+        setProfile(data);
+        setFormData({
+          name: data.name || '',
+          email: data.email || '',
+          phone: data.phone || '',
+          address: data.address || '',
+          city: data.city || '',
+          country: data.country || ''
+        });
+        setError(null);
+      } catch (err: any) {
+        console.error('Failed to load profile:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadProfile();
+  }, []);
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setSubmitting(true);
+      await userService.updateProfile(formData);
+      const updatedProfile = await userService.getProfile();
+      setProfile(updatedProfile);
+      setEditMode(false);
+      alert('Profile updated successfully');
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      alert('New passwords do not match');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      await userService.changePassword(passwordData.currentPassword, passwordData.newPassword);
+      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setPasswordMode(false);
+      alert('Password changed successfully');
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <DashboardShell title="User Profile" user={user} onLogout={onLogout}>
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="animate-spin text-amber-500" size={40} />
+        </div>
+      ) : error ? (
+        <div className="p-6 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500">
+          <p className="font-bold">{error}</p>
+        </div>
+      ) : profile ? (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Profile Summary */}
+            <div className="glass-card rounded-[2.5rem] p-8 border border-slate-200 dark:border-white/10">
+              <div className="text-center mb-8">
+                <div className="w-24 h-24 bg-gradient-to-br from-amber-400 to-amber-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <User size={48} className="text-white" />
+                </div>
+                <h2 className="text-2xl font-bold mb-1">{profile.name}</h2>
+                <p className="text-sm text-slate-500">{profile.email}</p>
+                <div className="mt-4 pt-4 border-t border-slate-200 dark:border-white/10">
+                  <p className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-2">Member Since</p>
+                  <p className="text-sm font-bold">{new Date(profile.createdAt).toLocaleDateString()}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Edit Form */}
+            <div className="md:col-span-2">
+              {!editMode && !passwordMode ? (
+                <div className="glass-card rounded-[2.5rem] p-8 border border-slate-200 dark:border-white/10 space-y-6">
+                  <div>
+                    <h3 className="text-xl font-bold mb-6">Account Information</h3>
+                    <div className="space-y-4">
+                      <div className="p-4 bg-slate-100 dark:bg-white/5 rounded-xl">
+                        <p className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-1">Full Name</p>
+                        <p className="font-bold">{profile.name}</p>
+                      </div>
+                      <div className="p-4 bg-slate-100 dark:bg-white/5 rounded-xl">
+                        <p className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-1">Email</p>
+                        <p className="font-bold">{profile.email}</p>
+                      </div>
+                      <div className="p-4 bg-slate-100 dark:bg-white/5 rounded-xl">
+                        <p className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-1">Phone</p>
+                        <p className="font-bold">{profile.phone || 'Not provided'}</p>
+                      </div>
+                      <div className="p-4 bg-slate-100 dark:bg-white/5 rounded-xl">
+                        <p className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-1">Address</p>
+                        <p className="font-bold">{profile.address ? `${profile.address}, ${profile.city}, ${profile.country}` : 'Not provided'}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4 pt-4">
+                    <button
+                      onClick={() => setEditMode(true)}
+                      className="flex-1 px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                    >
+                      <Settings size={20} /> Edit Profile
+                    </button>
+                    <button
+                      onClick={() => setPasswordMode(true)}
+                      className="flex-1 px-6 py-3 bg-slate-200 dark:bg-white/10 text-slate-900 dark:text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                    >
+                      <Lock size={20} /> Change Password
+                    </button>
+                  </div>
+                </div>
+              ) : editMode ? (
+                <div className="glass-card rounded-[2.5rem] p-8 border border-slate-200 dark:border-white/10">
+                  <h3 className="text-xl font-bold mb-6">Edit Profile</h3>
+                  <form onSubmit={handleUpdateProfile} className="space-y-6">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-bold uppercase tracking-widest mb-3 block text-slate-600 dark:text-slate-400">Full Name</label>
+                        <input
+                          type="text"
+                          value={formData.name}
+                          onChange={(e) => setFormData({...formData, name: e.target.value})}
+                          className="w-full px-6 py-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-bold uppercase tracking-widest mb-3 block text-slate-600 dark:text-slate-400">Email</label>
+                        <input
+                          type="email"
+                          value={formData.email}
+                          onChange={(e) => setFormData({...formData, email: e.target.value})}
+                          className="w-full px-6 py-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-sm font-bold uppercase tracking-widest mb-3 block text-slate-600 dark:text-slate-400">Phone</label>
+                      <input
+                        type="text"
+                        value={formData.phone}
+                        onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                        placeholder="Optional"
+                        className="w-full px-6 py-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-bold uppercase tracking-widest mb-3 block text-slate-600 dark:text-slate-400">Address</label>
+                      <input
+                        type="text"
+                        value={formData.address}
+                        onChange={(e) => setFormData({...formData, address: e.target.value})}
+                        placeholder="Optional"
+                        className="w-full px-6 py-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-bold uppercase tracking-widest mb-3 block text-slate-600 dark:text-slate-400">City</label>
+                        <input
+                          type="text"
+                          value={formData.city}
+                          onChange={(e) => setFormData({...formData, city: e.target.value})}
+                          placeholder="Optional"
+                          className="w-full px-6 py-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-bold uppercase tracking-widest mb-3 block text-slate-600 dark:text-slate-400">Country</label>
+                        <input
+                          type="text"
+                          value={formData.country}
+                          onChange={(e) => setFormData({...formData, country: e.target.value})}
+                          placeholder="Optional"
+                          className="w-full px-6 py-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-4 pt-4">
+                      <button
+                        type="submit"
+                        disabled={submitting}
+                        className="flex-1 py-4 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                      >
+                        {submitting ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle2 size={20} />}
+                        {submitting ? 'Saving...' : 'Save Changes'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditMode(false)}
+                        className="flex-1 py-4 bg-slate-200 dark:bg-white/10 text-slate-900 dark:text-white font-bold rounded-xl transition-all"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              ) : (
+                <div className="glass-card rounded-[2.5rem] p-8 border border-slate-200 dark:border-white/10">
+                  <h3 className="text-xl font-bold mb-6">Change Password</h3>
+                  <form onSubmit={handleChangePassword} className="space-y-6">
+                    <div>
+                      <label className="text-sm font-bold uppercase tracking-widest mb-3 block text-slate-600 dark:text-slate-400">Current Password</label>
+                      <input
+                        type="password"
+                        value={passwordData.currentPassword}
+                        onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
+                        className="w-full px-6 py-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-bold uppercase tracking-widest mb-3 block text-slate-600 dark:text-slate-400">New Password</label>
+                      <input
+                        type="password"
+                        value={passwordData.newPassword}
+                        onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
+                        className="w-full px-6 py-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-bold uppercase tracking-widest mb-3 block text-slate-600 dark:text-slate-400">Confirm New Password</label>
+                      <input
+                        type="password"
+                        value={passwordData.confirmPassword}
+                        onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
+                        className="w-full px-6 py-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                      />
+                    </div>
+                    <div className="flex gap-4 pt-4">
+                      <button
+                        type="submit"
+                        disabled={submitting}
+                        className="flex-1 py-4 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                      >
+                        {submitting ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle2 size={20} />}
+                        {submitting ? 'Changing...' : 'Change Password'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPasswordMode(false)}
+                        className="flex-1 py-4 bg-slate-200 dark:bg-white/10 text-slate-900 dark:text-white font-bold rounded-xl transition-all"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      ) : null}
+    </DashboardShell>
+  );
+};
+
+const ReferralDashboard = ({ user, onLogout }: any) => {
+  const [referralStats, setReferralStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const loadStats = async () => {
+      try {
+        setLoading(true);
+        const stats = await userService.getReferralStats();
+        setReferralStats(stats);
+        setError(null);
+      } catch (err: any) {
+        console.error('Failed to load referral stats:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadStats();
+  }, []);
+
+  const handleCopyReferralCode = async () => {
+    try {
+      await userService.copyReferralCode();
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  return (
+    <DashboardShell title="Referral Program" user={user} onLogout={onLogout}>
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="animate-spin text-amber-500" size={40} />
+        </div>
+      ) : error ? (
+        <div className="p-6 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500">
+          <p className="font-bold">{error}</p>
+        </div>
+      ) : referralStats ? (
+        <>
+          {/* Referral Stats Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="glass-card p-8 rounded-[2.5rem] border border-slate-200 dark:border-white/10">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 bg-amber-500/10 rounded-xl text-amber-500">
+                  <Gift size={24} />
+                </div>
+                <p className="text-xs text-slate-400 font-black uppercase tracking-widest">Your Referral Code</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <p className="text-3xl font-black text-amber-500">{referralStats.referralCode}</p>
+                <button
+                  onClick={handleCopyReferralCode}
+                  className={`p-3 rounded-xl transition-all ${
+                    copied
+                      ? 'bg-emerald-500/20 text-emerald-500'
+                      : 'bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                  }`}
+                >
+                  {copied ? <CheckCircle2 size={20} /> : <Copy size={20} />}
+                </button>
+              </div>
+            </div>
+
+            <div className="glass-card p-8 rounded-[2.5rem] border border-slate-200 dark:border-white/10">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-500">
+                  <Users size={24} />
+                </div>
+                <p className="text-xs text-slate-400 font-black uppercase tracking-widest">Total Referrals</p>
+              </div>
+              <p className="text-4xl font-black text-emerald-500">{referralStats.totalReferrals}</p>
+            </div>
+
+            <div className="glass-card p-8 rounded-[2.5rem] border border-slate-200 dark:border-white/10">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 bg-blue-500/10 rounded-xl text-blue-500">
+                  <BarChart3 size={24} />
+                </div>
+                <p className="text-xs text-slate-400 font-black uppercase tracking-widest">Earnings</p>
+              </div>
+              <p className="text-3xl font-black text-blue-500">${referralStats.referralEarnings.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            </div>
+          </div>
+
+          {/* How It Works */}
+          <div className="glass-card p-8 rounded-[2.5rem] border border-slate-200 dark:border-white/10 mb-8">
+            <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+              <ClipboardList size={24} className="text-amber-500" /> How the Referral Program Works
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="p-6 bg-slate-100 dark:bg-white/5 rounded-2xl">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center text-white font-bold text-sm">1</div>
+                  <h3 className="font-bold">Share Your Code</h3>
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-400">Share your unique referral code with friends and family. You can copy it with one click above.</p>
+              </div>
+              <div className="p-6 bg-slate-100 dark:bg-white/5 rounded-2xl">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center text-white font-bold text-sm">2</div>
+                  <h3 className="font-bold">They Sign Up</h3>
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-400">When someone signs up using your code, they become your referral and receive a welcome bonus.</p>
+              </div>
+              <div className="p-6 bg-slate-100 dark:bg-white/5 rounded-2xl">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center text-white font-bold text-sm">3</div>
+                  <h3 className="font-bold">You Earn Rewards</h3>
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-400">Earn 5% commission on their first investment. Keep earning as they continue to invest.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Referral Benefits */}
+          <div className="glass-card p-8 rounded-[2.5rem] border border-slate-200 dark:border-white/10">
+            <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+              <Star size={24} className="text-amber-500" /> Referral Benefits
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex items-start gap-3 p-4 bg-emerald-500/10 rounded-xl">
+                <CheckCircle2 size={20} className="text-emerald-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">5% Lifetime Commission</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">Earn 5% on every referral's investment</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-4 bg-emerald-500/10 rounded-xl">
+                <CheckCircle2 size={20} className="text-emerald-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">Unlimited Referrals</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">No cap on how many friends you can refer</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-4 bg-emerald-500/10 rounded-xl">
+                <CheckCircle2 size={20} className="text-emerald-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">Instant Payouts</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">Commissions credited instantly to your wallet</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-4 bg-emerald-500/10 rounded-xl">
+                <CheckCircle2 size={20} className="text-emerald-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">Bonus Rewards</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">Tier-based bonuses when you reach milestones</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      ) : null}
     </DashboardShell>
   );
 };
@@ -2119,6 +2722,18 @@ const AppContent: React.FC<{
         <Route path="/admin/settings" element={
           <ProtectedRoute user={user} allowedRoles={['TENANT_ADMIN']}>
             <AdminSettings user={user} onLogout={handleLogout} />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/profile" element={
+          <ProtectedRoute user={user}>
+            <UserProfile user={user} onLogout={handleLogout} />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/referrals" element={
+          <ProtectedRoute user={user} allowedRoles={['INVESTOR']}>
+            <ReferralDashboard user={user} onLogout={handleLogout} />
           </ProtectedRoute>
         } />
         
