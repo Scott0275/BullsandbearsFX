@@ -32,23 +32,87 @@ export interface AdminStatsResponse {
 export interface PaymentAddress {
   id: string;
   cryptoType: string;
+  crypto?: string;
   address: string;
-  isActive: boolean;
+  isActive?: boolean;
+  updatedAt?: string;
+  createdAt?: string;
+}
+
+export interface PaymentAddressResponse {
+  items?: PaymentAddress[];
+  addresses?: PaymentAddress[];
+  id?: string;
+  cryptoType?: string;
+  crypto?: string;
+  address?: string;
+}
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: 'ACTIVE' | 'SUSPENDED' | 'DELETED';
+  totalInvested: number;
+  createdAt: string;
+}
+
+export interface UserListResponse {
+  items: User[];
+  total: number;
+  page: number;
+}
+
+export interface InvestmentPlan {
+  id: string;
+  name: string;
+  minAmount: number;
+  maxAmount: number;
+  roi: number;
+  duration: number;
+  status: 'ACTIVE' | 'INACTIVE';
+  description?: string;
+  features?: string[];
+  createdAt?: string;
   updatedAt?: string;
 }
 
-export interface ROIDistributionResponse {
-  message: string;
-  distributed: {
-    count: number;
-    totalAmount: number;
-    investmentsProcessed: Array<{
-      investmentId: string;
-      userId: string;
-      roiAmount: number;
-      status: 'CREDITED';
-    }>;
-  };
+export interface InvestmentPlanListResponse {
+  items: InvestmentPlan[];
+  total: number;
+}
+
+export interface PlanCreateRequest {
+  name: string;
+  minAmount: number;
+  maxAmount: number;
+  roi: number;
+  duration: number;
+  description?: string;
+  features?: string[];
+}
+
+export interface PlanUpdateRequest {
+  name?: string;
+  minAmount?: number;
+  maxAmount?: number;
+  roi?: number;
+  duration?: number;
+  description?: string;
+  features?: string[];
+  status?: 'ACTIVE' | 'INACTIVE';
+}
+
+export interface SuspendUserResponse {
+  id: string;
+  status: 'SUSPENDED';
+  reason: string;
+}
+
+export interface UnsuspendUserResponse {
+  id: string;
+  status: 'ACTIVE';
 }
 
 /**
@@ -58,6 +122,8 @@ export interface ROIDistributionResponse {
  * Operations:
  * - View platform stats (users, investments, transactions)
  * - Manage crypto payment addresses
+ * - Manage users (view, suspend, unsuspend)
+ * - Manage investment plans (CRUD)
  * - Distribute ROI to completed investments (SUPER_ADMIN only)
  */
 export const adminService = {
@@ -195,7 +261,7 @@ export const adminService = {
    * 
    * Returns detailed report of processed investments
    */
-  async distributeROI(): Promise<ROIDistributionResponse> {
+  async distributeROI(): Promise<any> {
     try {
       const response = await fetch(`${API_URL}/api/admin/roi-distribution`, {
         method: 'POST',
@@ -218,4 +284,186 @@ export const adminService = {
       throw error;
     }
   },
-};
+
+  /**
+   * Get all users (ADMIN ONLY)
+   * Backend: GET /api/admin/users?page=1&limit=10
+   * 
+   * Lists all users with their status and investment info
+   * Supports pagination and filtering
+   */
+  async listUsers(page: number = 1, limit: number = 10): Promise<UserListResponse> {
+    try {
+      const response = await fetch(
+        `${API_URL}/api/admin/users?page=${page}&limit=${limit}`,
+        {
+          method: 'GET',
+          headers: getHeaders(),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to fetch users');
+      }
+
+      return response.json();
+    } catch (error: any) {
+      console.error('Users fetch error:', error.message);
+      throw error;
+    }
+  },
+
+  /**
+   * Suspend a user account (ADMIN ONLY)
+   * Backend: POST /api/admin/users/:id/suspend
+   * 
+   * Suspends user account, preventing login and transactions
+   */
+  async suspendUser(userId: string, reason: string): Promise<SuspendUserResponse> {
+    try {
+      const response = await fetch(`${API_URL}/api/admin/users/${userId}/suspend`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ reason }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to suspend user');
+      }
+
+      return response.json();
+    } catch (error: any) {
+      console.error('Suspend user error:', error.message);
+      throw error;
+    }
+  },
+
+  /**
+   * Unsuspend a user account (ADMIN ONLY)
+   * Backend: POST /api/admin/users/:id/unsuspend
+   * 
+   * Restores suspended user account to ACTIVE status
+   */
+  async unsuspendUser(userId: string): Promise<UnsuspendUserResponse> {
+    try {
+      const response = await fetch(`${API_URL}/api/admin/users/${userId}/unsuspend`, {
+        method: 'POST',
+        headers: getHeaders(),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to unsuspend user');
+      }
+
+      return response.json();
+    } catch (error: any) {
+      console.error('Unsuspend user error:', error.message);
+      throw error;
+    }
+  },
+
+  /**
+   * Get all investment plans (ADMIN ONLY)
+   * Backend: GET /api/admin/investment-plans
+   * 
+   * Lists all investment plans with their parameters
+   */
+  async listInvestmentPlans(): Promise<InvestmentPlanListResponse> {
+    try {
+      const response = await fetch(`${API_URL}/api/admin/investment-plans`, {
+        method: 'GET',
+        headers: getHeaders(),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to fetch investment plans');
+      }
+
+      return response.json();
+    } catch (error: any) {
+      console.error('Investment plans fetch error:', error.message);
+      throw error;
+    }
+  },
+
+  /**
+   * Create a new investment plan (ADMIN ONLY)
+   * Backend: POST /api/admin/investment-plans
+   * 
+   * Creates new investment plan available to all users
+   */
+  async createInvestmentPlan(data: PlanCreateRequest): Promise<InvestmentPlan> {
+    try {
+      const response = await fetch(`${API_URL}/api/admin/investment-plans`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to create investment plan');
+      }
+
+      return response.json();
+    } catch (error: any) {
+      console.error('Create investment plan error:', error.message);
+      throw error;
+    }
+  },
+
+  /**
+   * Update an investment plan (ADMIN ONLY)
+   * Backend: PATCH /api/admin/investment-plans/:id
+   * 
+   * Updates plan parameters (only provided fields)
+   */
+  async updateInvestmentPlan(planId: string, data: PlanUpdateRequest): Promise<InvestmentPlan> {
+    try {
+      const response = await fetch(`${API_URL}/api/admin/investment-plans/${planId}`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to update investment plan');
+      }
+
+      return response.json();
+    } catch (error: any) {
+      console.error('Update investment plan error:', error.message);
+      throw error;
+    }
+  },
+
+  /**
+   * Delete a crypto payment address (ADMIN ONLY)
+   * Backend: DELETE /api/admin/payment-addresses/:id
+   * 
+   * Removes payment address from active use
+   */
+  async deletePaymentAddress(addressId: string): Promise<{ success: boolean }> {
+    try {
+      const response = await fetch(`${API_URL}/api/admin/payment-addresses/${addressId}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to delete payment address');
+      }
+
+      return response.json();
+    } catch (error: any) {
+      console.error('Delete payment address error:', error.message);
+      throw error;
+    }
+  },
+
