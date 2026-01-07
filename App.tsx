@@ -291,10 +291,183 @@ const DashboardShell = ({ title, children, user, onLogout }: any) => {
   );
 };
 
+const DepositForm = ({ onSuccess }: any) => {
+  const [selectedCrypto, setSelectedCrypto] = useState('ETH');
+  const [amount, setAmount] = useState('');
+  const [walletAddress, setWalletAddress] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const cryptoOptions = ['BTC', 'ETH', 'USDT', 'USDC'];
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!amount || parseFloat(amount) <= 0) {
+      alert('Please enter a valid amount');
+      return;
+    }
+    if (!walletAddress) {
+      alert('Please enter your wallet address');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const deposit = await walletService.requestDeposit(parseFloat(amount), selectedCrypto, walletAddress);
+      alert(`Deposit request created! Transaction ID: ${deposit.id}\nSend ${amount} ${selectedCrypto} to the provided address.`);
+      setAmount('');
+      setWalletAddress('');
+      onSuccess?.();
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div>
+        <label className="text-sm font-bold uppercase tracking-widest mb-3 block text-slate-600 dark:text-slate-400">Cryptocurrency</label>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {cryptoOptions.map((crypto) => (
+            <button
+              key={crypto}
+              type="button"
+              onClick={() => setSelectedCrypto(crypto)}
+              className={`p-4 rounded-xl border-2 font-bold transition-all ${
+                selectedCrypto === crypto
+                  ? 'bg-amber-500 text-black border-amber-500'
+                  : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10 hover:border-amber-500/50'
+              }`}
+            >
+              {crypto}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="text-sm font-bold uppercase tracking-widest mb-3 block text-slate-600 dark:text-slate-400">Amount ({selectedCrypto})</label>
+        <input
+          type="number"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="Enter amount"
+          step="0.01"
+          min="0"
+          className="w-full px-6 py-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+        />
+      </div>
+
+      <div>
+        <label className="text-sm font-bold uppercase tracking-widest mb-3 block text-slate-600 dark:text-slate-400">Your Wallet Address</label>
+        <input
+          type="text"
+          value={walletAddress}
+          onChange={(e) => setWalletAddress(e.target.value)}
+          placeholder={`Enter your ${selectedCrypto} wallet address`}
+          className="w-full px-6 py-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+        />
+      </div>
+
+      <button
+        type="submit"
+        disabled={submitting}
+        className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+      >
+        {submitting ? <Loader2 size={20} className="animate-spin" /> : <ArrowUpRight size={20} />}
+        {submitting ? 'Submitting...' : 'Request Deposit'}
+      </button>
+    </form>
+  );
+};
+
+const WithdrawalForm = ({ balance, onSuccess }: any) => {
+  const [amount, setAmount] = useState('');
+  const [recipientAddress, setRecipientAddress] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!amount || parseFloat(amount) <= 0) {
+      alert('Please enter a valid amount');
+      return;
+    }
+    if (parseFloat(amount) > balance) {
+      alert(`Insufficient balance. Available: $${balance.toFixed(2)}`);
+      return;
+    }
+    if (!recipientAddress) {
+      alert('Please enter recipient address');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const withdrawal = await walletService.requestWithdrawal(parseFloat(amount), recipientAddress);
+      alert(`Withdrawal request created! Transaction ID: ${withdrawal.id}\nYour withdrawal is pending admin approval.`);
+      setAmount('');
+      setRecipientAddress('');
+      onSuccess?.();
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-2xl">
+        <p className="text-sm font-bold text-blue-600 dark:text-blue-400">Available Balance</p>
+        <p className="text-3xl font-black text-blue-500">${balance?.toFixed(2) || '0.00'}</p>
+      </div>
+
+      <div>
+        <label className="text-sm font-bold uppercase tracking-widest mb-3 block text-slate-600 dark:text-slate-400">Withdrawal Amount</label>
+        <input
+          type="number"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="Enter amount to withdraw"
+          step="0.01"
+          min="0"
+          max={balance || 0}
+          className="w-full px-6 py-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+        />
+      </div>
+
+      <div>
+        <label className="text-sm font-bold uppercase tracking-widest mb-3 block text-slate-600 dark:text-slate-400">Recipient Bank/Wallet Address</label>
+        <input
+          type="text"
+          value={recipientAddress}
+          onChange={(e) => setRecipientAddress(e.target.value)}
+          placeholder="Enter bank account or wallet address"
+          className="w-full px-6 py-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+        />
+      </div>
+
+      <button
+        type="submit"
+        disabled={submitting}
+        className="w-full py-4 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+      >
+        {submitting ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
+        {submitting ? 'Processing...' : 'Request Withdrawal'}
+      </button>
+    </form>
+  );
+};
+
 const InvestorDashboard = ({ user, onLogout }: any) => {
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('overview'); // overview, deposit, withdraw
+  const [filterType, setFilterType] = useState('ALL');
+  const [filterStatus, setFilterStatus] = useState('ALL');
+  const [sortBy, setSortBy] = useState('date-desc');
 
   useEffect(() => {
     const loadData = async () => {
@@ -365,6 +538,41 @@ const InvestorDashboard = ({ user, onLogout }: any) => {
     }
   };
 
+  // Filtered and sorted transactions
+  const filteredTransactions = useMemo(() => {
+    let filtered = [...transactions];
+    
+    if (filterType !== 'ALL') {
+      filtered = filtered.filter(txn => txn.type === filterType);
+    }
+    
+    if (filterStatus !== 'ALL') {
+      filtered = filtered.filter(txn => txn.status === filterStatus);
+    }
+    
+    // Sort transactions
+    if (sortBy === 'date-desc') {
+      filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    } else if (sortBy === 'date-asc') {
+      filtered.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    } else if (sortBy === 'amount-desc') {
+      filtered.sort((a, b) => b.amount - a.amount);
+    } else if (sortBy === 'amount-asc') {
+      filtered.sort((a, b) => a.amount - b.amount);
+    }
+    
+    return filtered;
+  }, [transactions, filterType, filterStatus, sortBy]);
+
+  const handleRefreshDashboard = async () => {
+    try {
+      const data = await dashboardService.getInvestorDashboard();
+      setDashboardData(data);
+    } catch (err: any) {
+      console.error('Failed to refresh dashboard:', err);
+    }
+  };
+
   return (
     <DashboardShell title="Investor Dashboard" user={user} onLogout={onLogout}>
       {/* KYC Status & Notifications Bar */}
@@ -385,6 +593,27 @@ const InvestorDashboard = ({ user, onLogout }: any) => {
         </div>
       </div>
 
+      {/* Tab Navigation */}
+      <div className="flex gap-2 mb-8 border-b border-slate-200 dark:border-white/10">
+        {[
+          { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+          { id: 'deposit', label: 'Deposit', icon: ArrowUpRight },
+          { id: 'withdraw', label: 'Withdraw', icon: Send }
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-6 py-4 font-bold flex items-center gap-2 border-b-2 transition-all ${
+              activeTab === tab.id
+                ? 'border-amber-500 text-amber-500'
+                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-amber-500'
+            }`}
+          >
+            <tab.icon size={20} /> {tab.label}
+          </button>
+        ))}
+      </div>
+
       {/* Main Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {[
@@ -402,82 +631,156 @@ const InvestorDashboard = ({ user, onLogout }: any) => {
         ))}
       </div>
 
-      {/* Investment Summary & Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-        {/* Investment Stats */}
-        <div className="glass-card rounded-[2.5rem] p-8 border border-slate-200 dark:border-white/10">
-          <h3 className="text-xl font-bold mb-6">Investment Summary</h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-2xl">
-              <div className="flex items-center gap-3">
-                <Repeat size={20} className="text-blue-500" />
-                <div>
-                  <p className="font-bold text-sm">Active Investments</p>
-                  <p className="text-xs text-slate-500">ongoing</p>
+      {/* Tab Content */}
+      {activeTab === 'overview' && (
+        <>
+          {/* Investment Summary & Transaction Filtering */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+            {/* Investment Stats */}
+            <div className="glass-card rounded-[2.5rem] p-8 border border-slate-200 dark:border-white/10">
+              <h3 className="text-xl font-bold mb-6">Investment Summary</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-2xl">
+                  <div className="flex items-center gap-3">
+                    <Repeat size={20} className="text-blue-500" />
+                    <div>
+                      <p className="font-bold text-sm">Active Investments</p>
+                      <p className="text-xs text-slate-500">ongoing</p>
+                    </div>
+                  </div>
+                  <p className="font-bold text-lg text-blue-500">{investments?.active || 0}</p>
+                </div>
+                <div className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-2xl">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 size={20} className="text-emerald-500" />
+                    <div>
+                      <p className="font-bold text-sm">Completed</p>
+                      <p className="text-xs text-slate-500">finished</p>
+                    </div>
+                  </div>
+                  <p className="font-bold text-lg text-emerald-500">{investments?.completed || 0}</p>
+                </div>
+                <div className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-2xl">
+                  <div className="flex items-center gap-3">
+                    <TrendingUp size={20} className="text-amber-500" />
+                    <div>
+                      <p className="font-bold text-sm">Total Value</p>
+                      <p className="text-xs text-slate-500">portfolio</p>
+                    </div>
+                  </div>
+                  <p className="font-bold text-lg text-amber-500">${investments?.totalValue?.toFixed(2) || '0.00'}</p>
                 </div>
               </div>
-              <p className="font-bold text-lg text-blue-500">{investments?.active || 0}</p>
             </div>
-            <div className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-2xl">
-              <div className="flex items-center gap-3">
-                <CheckCircle2 size={20} className="text-emerald-500" />
-                <div>
-                  <p className="font-bold text-sm">Completed</p>
-                  <p className="text-xs text-slate-500">finished</p>
-                </div>
-              </div>
-              <p className="font-bold text-lg text-emerald-500">{investments?.completed || 0}</p>
-            </div>
-            <div className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-2xl">
-              <div className="flex items-center gap-3">
-                <TrendingUp size={20} className="text-amber-500" />
-                <div>
-                  <p className="font-bold text-sm">Total Value</p>
-                  <p className="text-xs text-slate-500">portfolio</p>
-                </div>
-              </div>
-              <p className="font-bold text-lg text-amber-500">${investments?.totalValue?.toFixed(2) || '0.00'}</p>
-            </div>
-          </div>
-        </div>
 
-        {/* Recent Transactions */}
-        <div className="lg:col-span-2 glass-card rounded-[2.5rem] p-8 border border-slate-200 dark:border-white/10">
-          <h3 className="text-xl font-bold mb-6">Recent Transactions</h3>
-          <div className="space-y-4 max-h-96 overflow-y-auto scrollbar-hide">
-            {transactions.length > 0 ? (
-              transactions.slice(0, 5).map((txn) => (
-                <div key={txn.id} className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-2xl hover:bg-slate-200 dark:hover:bg-white/10 transition">
+            {/* Transaction Filtering & Display */}
+            <div className="lg:col-span-2 glass-card rounded-[2.5rem] p-8 border border-slate-200 dark:border-white/10">
+              <h3 className="text-xl font-bold mb-6">Transactions</h3>
+              
+              {/* Filters */}
+              <div className="space-y-4 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <p className="font-bold text-sm">{txn.type.replace(/_/g, ' ')}</p>
-                    <p className="text-xs text-slate-500">{new Date(txn.createdAt).toLocaleDateString()} {new Date(txn.createdAt).toLocaleTimeString()}</p>
+                    <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Type</label>
+                    <select
+                      value={filterType}
+                      onChange={(e) => setFilterType(e.target.value)}
+                      className="w-full px-4 py-2 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                    >
+                      <option value="ALL">All Types</option>
+                      <option value="DEPOSIT">Deposits</option>
+                      <option value="WITHDRAWAL">Withdrawals</option>
+                      <option value="INVESTMENT_DEBIT">Investments</option>
+                      <option value="ROI_CREDIT">ROI Credits</option>
+                      <option value="REFERRAL_CREDIT">Referrals</option>
+                    </select>
                   </div>
-                  <div className="text-right">
-                    <p className={`font-bold ${txn.type.includes('CREDIT') || txn.type.includes('ROI') ? 'text-emerald-500' : 'text-red-500'}`}>
-                      {txn.type.includes('CREDIT') || txn.type.includes('ROI') ? '+' : '-'}${txn.amount.toFixed(2)}
-                    </p>
-                    <p className={`text-xs ${txn.status === 'APPROVED' ? 'text-emerald-500' : txn.status === 'PENDING' ? 'text-amber-500' : 'text-red-500'}`}>{txn.status}</p>
+                  <div>
+                    <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Status</label>
+                    <select
+                      value={filterStatus}
+                      onChange={(e) => setFilterStatus(e.target.value)}
+                      className="w-full px-4 py-2 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                    >
+                      <option value="ALL">All Status</option>
+                      <option value="APPROVED">Approved</option>
+                      <option value="PENDING">Pending</option>
+                      <option value="REJECTED">Rejected</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Sort By</label>
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value)}
+                      className="w-full px-4 py-2 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                    >
+                      <option value="date-desc">Newest First</option>
+                      <option value="date-asc">Oldest First</option>
+                      <option value="amount-desc">Amount (High)</option>
+                      <option value="amount-asc">Amount (Low)</option>
+                    </select>
                   </div>
                 </div>
-              ))
-            ) : (
-              <p className="text-slate-500 text-center py-6">No transactions yet</p>
-            )}
+              </div>
+
+              {/* Transactions List */}
+              <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-hide">
+                {filteredTransactions.length > 0 ? (
+                  filteredTransactions.map((txn) => (
+                    <div key={txn.id} className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-2xl hover:bg-slate-200 dark:hover:bg-white/10 transition">
+                      <div className="flex-1">
+                        <p className="font-bold text-sm">{txn.type.replace(/_/g, ' ')}</p>
+                        <p className="text-xs text-slate-500">{new Date(txn.createdAt).toLocaleDateString()} {new Date(txn.createdAt).toLocaleTimeString()}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className={`font-bold ${txn.type.includes('CREDIT') || txn.type.includes('ROI') ? 'text-emerald-500' : 'text-red-500'}`}>
+                          {txn.type.includes('CREDIT') || txn.type.includes('ROI') ? '+' : '-'}${txn.amount.toFixed(2)}
+                        </p>
+                        <p className={`text-xs ${txn.status === 'APPROVED' ? 'text-emerald-500' : txn.status === 'PENDING' ? 'text-amber-500' : 'text-red-500'}`}>{txn.status}</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-slate-500 text-center py-6">No transactions match the filters</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Payment Addresses for Deposits */}
+          {paymentAddresses.length > 0 && (
+            <div className="glass-card rounded-[2.5rem] p-8 border border-slate-200 dark:border-white/10">
+              <h3 className="text-xl font-bold mb-6">Deposit Payment Addresses</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {paymentAddresses.map((addr) => (
+                  <div key={addr.id} className="p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
+                    <p className="font-bold text-sm mb-2 text-slate-600 dark:text-slate-300">{addr.crypto}</p>
+                    <p className="text-xs font-mono text-slate-500 break-all">{addr.address}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {activeTab === 'deposit' && (
+        <div className="max-w-2xl">
+          <div className="glass-card rounded-[2.5rem] p-12 border border-slate-200 dark:border-white/10">
+            <h2 className="text-3xl font-bold mb-2">Request Deposit</h2>
+            <p className="text-slate-500 dark:text-gray-400 mb-8 font-medium">Send cryptocurrency to our wallet address and we'll credit your account once verified on the blockchain.</p>
+            <DepositForm onSuccess={handleRefreshDashboard} />
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Payment Addresses for Deposits */}
-      {paymentAddresses.length > 0 && (
-        <div className="glass-card rounded-[2.5rem] p-8 border border-slate-200 dark:border-white/10">
-          <h3 className="text-xl font-bold mb-6">Deposit Payment Addresses</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {paymentAddresses.map((addr) => (
-              <div key={addr.id} className="p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
-                <p className="font-bold text-sm mb-2 text-slate-600 dark:text-slate-300">{addr.crypto}</p>
-                <p className="text-xs font-mono text-slate-500 break-all">{addr.address}</p>
-              </div>
-            ))}
+      {activeTab === 'withdraw' && (
+        <div className="max-w-2xl">
+          <div className="glass-card rounded-[2.5rem] p-12 border border-slate-200 dark:border-white/10">
+            <h2 className="text-3xl font-bold mb-2">Request Withdrawal</h2>
+            <p className="text-slate-500 dark:text-gray-400 mb-8 font-medium">Withdraw your available balance. Your request will be reviewed and processed within 24-48 hours.</p>
+            <WithdrawalForm balance={wallet?.balance || 0} onSuccess={handleRefreshDashboard} />
           </div>
         </div>
       )}
@@ -717,7 +1020,7 @@ const AdminDashboard = ({ user, onLogout }: any) => {
 };
 
 const SuperAdminDashboard = ({ user, onLogout }: any) => {
-  const [stats, setStats] = useState<any>(null);
+  const [dashboardData, setDashboardData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [distributing, setDistributing] = useState(false);
@@ -726,11 +1029,11 @@ const SuperAdminDashboard = ({ user, onLogout }: any) => {
     const loadData = async () => {
       try {
         setLoading(true);
-        const statsData = await adminService.getStats();
-        setStats(statsData);
+        const data = await dashboardService.getSuperAdminDashboard();
+        setDashboardData(data);
         setError(null);
       } catch (err: any) {
-        console.error('Failed to load super admin stats:', err);
+        console.error('Failed to load super admin dashboard:', err);
         setError(err.message || 'Failed to load dashboard');
       } finally {
         setLoading(false);
@@ -744,10 +1047,10 @@ const SuperAdminDashboard = ({ user, onLogout }: any) => {
     try {
       setDistributing(true);
       const result = await adminService.distributeROI();
-      alert(`ROI Distributed: ${result.distributed.count} investments, $${result.distributed.totalAmount.toFixed(2)}`);
-      // Reload stats
-      const statsData = await adminService.getStats();
-      setStats(statsData);
+      alert(`ROI Distributed: ${result.distributed.count} investments, $${(result.distributed.totalAmount / 1000000).toFixed(2)}M`);
+      // Reload dashboard data
+      const data = await dashboardService.getSuperAdminDashboard();
+      setDashboardData(data);
     } catch (err: any) {
       alert(`Error: ${err.message}`);
     } finally {
@@ -765,100 +1068,134 @@ const SuperAdminDashboard = ({ user, onLogout }: any) => {
         <div className="p-6 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500">
           <p className="font-bold">{error}</p>
         </div>
-      ) : stats ? (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-8">
-            <div className="p-8 bg-amber-500 text-black rounded-[2.5rem] shadow-2xl shadow-amber-500/20">
-              <h3 className="text-2xl font-black mb-2">Global Platform Status</h3>
-              <p className="font-medium opacity-80 mb-6">
-                {stats.overview.totalUsers} users • ${(stats.overview.totalAUM / 1000000).toFixed(1)}M AUM • {stats.investments.active} active investments
-              </p>
-              <button
-                onClick={handleDistributeROI}
-                disabled={distributing}
-                className="px-6 py-3 bg-black text-white rounded-xl font-bold flex items-center gap-2 hover:scale-105 transition-transform disabled:opacity-50"
-              >
-                {distributing ? <Loader2 size={18} className="animate-spin" /> : <Shield size={20} />}
-                {distributing ? 'Distributing ROI...' : 'Distribute ROI'}
-              </button>
-            </div>
+      ) : dashboardData ? (
+        <>
+          {/* Overview Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            {[
+              { label: 'Total Users', value: dashboardData.overview.totalUsers.toString(), color: 'blue' },
+              { label: 'Total AUM', value: `$${(dashboardData.overview.totalAUM / 1000000).toFixed(1)}M`, color: 'emerald' },
+              { label: 'Active Investments', value: dashboardData.investments.active.toString(), color: 'amber' },
+              { label: 'Expected Returns', value: `$${(dashboardData.overview.totalExpectedReturns / 1000000).toFixed(1)}M`, color: 'purple' }
+            ].map((stat, i) => (
+              <div key={i} className={`glass-card p-6 rounded-[2rem] border border-slate-200 dark:border-white/10 bg-${stat.color}-500/5`}>
+                <p className={`text-xs text-${stat.color}-600 dark:text-${stat.color}-400 font-bold uppercase tracking-widest mb-2`}>{stat.label}</p>
+                <p className="text-3xl font-black">{stat.value}</p>
+              </div>
+            ))}
+          </div>
 
-            <div className="glass-card p-8 rounded-[2.5rem] border border-slate-200 dark:border-white/10">
-              <h3 className="text-xl font-bold mb-6">Platform Metrics</h3>
-              <div className="grid grid-cols-3 gap-4">
-                {[
-                  { label: 'Total Users', value: stats.overview.totalUsers.toString() },
-                  { label: 'Total AUM', value: `$${(stats.overview.totalAUM / 1000000).toFixed(1)}M` },
-                  { label: 'Expected Returns', value: `$${(stats.overview.totalExpectedReturns / 1000000).toFixed(1)}M` }
-                ].map((metric, i) => (
-                  <div key={i} className="p-4 bg-slate-100 dark:bg-white/5 rounded-xl">
-                    <p className="text-xs text-slate-500 font-bold uppercase mb-1">{metric.label}</p>
-                    <p className="text-lg font-black">{metric.value}</p>
+          {/* Global Platform Status */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+            <div className="lg:col-span-2">
+              <div className="p-8 bg-amber-500 text-black rounded-[2.5rem] shadow-2xl shadow-amber-500/20 mb-8">
+                <h3 className="text-2xl font-black mb-2">Global Platform Status</h3>
+                <p className="font-medium opacity-80 mb-6">
+                  {dashboardData.overview.totalUsers} users • ${(dashboardData.overview.totalAUM / 1000000).toFixed(1)}M AUM • {dashboardData.investments.active} active investments
+                </p>
+                <button
+                  onClick={handleDistributeROI}
+                  disabled={distributing}
+                  className="px-6 py-3 bg-black text-white rounded-xl font-bold flex items-center gap-2 hover:scale-105 transition-transform disabled:opacity-50"
+                >
+                  {distributing ? <Loader2 size={18} className="animate-spin" /> : <Shield size={20} />}
+                  {distributing ? 'Distributing ROI...' : 'Distribute ROI'}
+                </button>
+              </div>
+
+              {/* Investment Overview */}
+              <div className="glass-card p-8 rounded-[2.5rem] border border-slate-200 dark:border-white/10">
+                <h3 className="text-xl font-bold mb-6">Investment Distribution</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-6 bg-blue-500/10 rounded-2xl border border-blue-500/20">
+                    <p className="text-sm text-blue-600 dark:text-blue-400 font-bold uppercase tracking-widest mb-2">Active Investments</p>
+                    <p className="text-4xl font-black text-blue-500">{dashboardData.investments.active}</p>
+                    {dashboardData.investments.activeDetails && (
+                      <p className="text-xs text-blue-500/60 mt-2">
+                        Total: ${dashboardData.investments.activeDetails.reduce((s: number, i: any) => s + i.amount, 0).toFixed(2)}
+                      </p>
+                    )}
                   </div>
-                ))}
+                  <div className="p-6 bg-emerald-500/10 rounded-2xl border border-emerald-500/20">
+                    <p className="text-sm text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-widest mb-2">Completed Investments</p>
+                    <p className="text-4xl font-black text-emerald-500">{dashboardData.investments.completed}</p>
+                    <p className="text-xs text-emerald-500/60 mt-2">ROI distributed</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Stats Sidebar */}
+            <div className="space-y-6">
+              <div className="glass-card p-6 rounded-[2rem] border border-slate-200 dark:border-white/10">
+                <h4 className="font-bold flex items-center gap-2 mb-4"><BarChart3 size={18} /> Pending Actions</h4>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center p-3 bg-slate-100 dark:bg-white/5 rounded-lg">
+                    <span className="text-xs font-bold text-slate-500">Pending Transactions</span>
+                    <span className="text-lg font-black text-amber-500">{dashboardData.transactions?.pending?.count || 0}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-slate-100 dark:bg-white/5 rounded-lg">
+                    <span className="text-xs font-bold text-slate-500">Pending KYC</span>
+                    <span className="text-lg font-black text-amber-500">{dashboardData.kyc?.pending || 0}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-slate-100 dark:bg-white/5 rounded-lg">
+                    <span className="text-xs font-bold text-slate-500">Pending Deposits</span>
+                    <span className="text-lg font-black text-amber-500">{dashboardData.wallet?.pendingDeposits || 0}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="glass-card p-6 rounded-[2rem] border border-slate-200 dark:border-white/10">
+                <h4 className="font-bold flex items-center gap-2 mb-4"><Shield size={18} /> Platform Security</h4>
+                <div className="space-y-2 text-sm">
+                  <p className="flex items-center gap-2"><span className="text-emerald-500">✓</span> JWT auth enabled</p>
+                  <p className="flex items-center gap-2"><span className="text-emerald-500">✓</span> Role-based access</p>
+                  <p className="flex items-center gap-2"><span className="text-emerald-500">✓</span> Crypto verified</p>
+                  <p className="flex items-center gap-2"><span className="text-emerald-500">✓</span> KYC enforcement</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Transaction & User Analytics */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="glass-card p-8 rounded-[2.5rem] border border-slate-200 dark:border-white/10">
+              <h3 className="text-xl font-bold mb-6">Transaction Analytics</h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-xl">
+                  <span className="font-bold">Approved</span>
+                  <span className="text-lg font-black text-emerald-500">{dashboardData.transactions?.approved || 0}</span>
+                </div>
+                <div className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-xl">
+                  <span className="font-bold">Rejected</span>
+                  <span className="text-lg font-black text-red-500">{dashboardData.transactions?.rejected || 0}</span>
+                </div>
+                <div className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-xl">
+                  <span className="font-bold">Pending</span>
+                  <span className="text-lg font-black text-amber-500">{dashboardData.transactions?.pending?.count || 0}</span>
+                </div>
               </div>
             </div>
 
             <div className="glass-card p-8 rounded-[2.5rem] border border-slate-200 dark:border-white/10">
-              <h3 className="text-xl font-bold mb-6">Investment Overview</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 dark:border-white/5">
-                      <th className="pb-3 font-black text-slate-400">Status</th>
-                      <th className="pb-3 font-black text-slate-400">Count</th>
-                      <th className="pb-3 font-black text-slate-400">Avg Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[
-                      { status: 'Active', count: stats.investments.active, total: stats.investments.activeDetails.reduce((s: number, i: any) => s + i.amount, 0) },
-                      { status: 'Completed', count: stats.investments.completed, total: 0 }
-                    ].map((row) => (
-                      <tr key={row.status} className="border-b border-slate-200 dark:border-white/5">
-                        <td className="py-3 font-bold">{row.status}</td>
-                        <td className="py-3">{row.count}</td>
-                        <td className="py-3">${row.count > 0 ? (row.total / row.count).toFixed(2) : '0.00'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <div className="glass-card p-6 rounded-[2rem] border border-slate-200 dark:border-white/10">
-              <h4 className="font-bold flex items-center gap-2 mb-4"><Settings size={18} /> Platform Config</h4>
-              <p className="text-xs text-slate-500 leading-relaxed mb-4">
-                Manage global settings, ROI distribution schedules, and payment addresses from the admin dashboard.
-              </p>
-              <div className="space-y-2 text-sm">
-                <p className="flex items-center gap-2"><span className="text-emerald-500">✓</span> Multi-tenant support</p>
-                <p className="flex items-center gap-2"><span className="text-emerald-500">✓</span> Crypto payments</p>
-                <p className="flex items-center gap-2"><span className="text-emerald-500">✓</span> ROI automation</p>
-              </div>
-            </div>
-
-            <div className="glass-card p-6 rounded-[2rem] border border-slate-200 dark:border-white/10">
-              <h4 className="font-bold flex items-center gap-2 mb-4"><BarChart3 size={18} /> Quick Stats</h4>
+              <h3 className="text-xl font-bold mb-6">User Analytics</h3>
               <div className="space-y-3">
-                <div className="flex justify-between items-center p-3 bg-slate-100 dark:bg-white/5 rounded-lg">
-                  <span className="text-xs font-bold text-slate-500">Pending</span>
-                  <span className="text-lg font-black text-amber-500">{stats.transactions.pending.count}</span>
+                <div className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-xl">
+                  <span className="font-bold">Active Users</span>
+                  <span className="text-lg font-black text-blue-500">{dashboardData.users?.active || 0}</span>
                 </div>
-                <div className="flex justify-between items-center p-3 bg-slate-100 dark:bg-white/5 rounded-lg">
-                  <span className="text-xs font-bold text-slate-500">Approved</span>
-                  <span className="text-lg font-black text-emerald-500">{stats.transactions.approved}</span>
+                <div className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-xl">
+                  <span className="font-bold">KYC Verified</span>
+                  <span className="text-lg font-black text-emerald-500">{dashboardData.users?.kycVerified || 0}</span>
                 </div>
-                <div className="flex justify-between items-center p-3 bg-slate-100 dark:bg-white/5 rounded-lg">
-                  <span className="text-xs font-bold text-slate-500">Rejected</span>
-                  <span className="text-lg font-black text-red-500">{stats.transactions.rejected}</span>
+                <div className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-xl">
+                  <span className="font-bold">Suspended</span>
+                  <span className="text-lg font-black text-red-500">{dashboardData.users?.suspended || 0}</span>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        </>
       ) : null}
     </DashboardShell>
   );
