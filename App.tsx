@@ -43,7 +43,8 @@ import {
   Star,
   Send,
   Share2,
-  Quote
+  Quote,
+  Plus
 } from 'lucide-react';
 import { fetchMarketData } from './services/cryptoService';
 import { getMarketInsights } from './services/aiService';
@@ -788,7 +789,525 @@ const InvestorDashboard = ({ user, onLogout }: any) => {
   );
 };
 
+const AdminSettings = ({ user, onLogout }: any) => {
+  const [activeTab, setActiveTab] = useState('addresses'); // addresses, plans, users
+  const [paymentAddresses, setPaymentAddresses] = useState<any[]>([]);
+  const [investmentPlans, setInvestmentPlans] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Payment Address Form State
+  const [showAddressForm, setShowAddressForm] = useState(false);
+  const [newAddress, setNewAddress] = useState({ crypto: 'BTC', address: '' });
+  const [submittingAddress, setSubmittingAddress] = useState(false);
+
+  // Investment Plan Form State
+  const [showPlanForm, setShowPlanForm] = useState(false);
+  const [newPlan, setNewPlan] = useState({ name: '', minAmount: 0, maxAmount: 0, roi: 0, duration: 30, description: '', features: '' });
+  const [submittingPlan, setSubmittingPlan] = useState(false);
+
+  // User Management State
+  const [suspendingUserId, setSuspendingUserId] = useState<string | null>(null);
+  const [searchUser, setSearchUser] = useState('');
+
+  useEffect(() => {
+    loadData();
+  }, [activeTab]);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      if (activeTab === 'addresses') {
+        const data = await adminService.getPaymentAddresses();
+        setPaymentAddresses(data || []);
+      } else if (activeTab === 'plans') {
+        const data = await adminService.listInvestmentPlans();
+        setInvestmentPlans(data || []);
+      } else if (activeTab === 'users') {
+        const data = await adminService.listUsers();
+        setUsers(data || []);
+      }
+      setError(null);
+    } catch (err: any) {
+      console.error('Failed to load data:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddAddress = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAddress.crypto || !newAddress.address) {
+      alert('Please fill all fields');
+      return;
+    }
+
+    try {
+      setSubmittingAddress(true);
+      await adminService.addPaymentAddress(newAddress.crypto, newAddress.address);
+      setNewAddress({ crypto: 'BTC', address: '' });
+      setShowAddressForm(false);
+      await loadData();
+      alert('Payment address added successfully');
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setSubmittingAddress(false);
+    }
+  };
+
+  const handleDeleteAddress = async (addressId: string) => {
+    if (!window.confirm('Are you sure you want to delete this address?')) return;
+
+    try {
+      await adminService.deletePaymentAddress(addressId);
+      await loadData();
+      alert('Payment address deleted successfully');
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  const handleAddPlan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPlan.name || newPlan.minAmount <= 0 || newPlan.maxAmount <= 0 || newPlan.roi <= 0 || !newPlan.features) {
+      alert('Please fill all required fields correctly');
+      return;
+    }
+
+    try {
+      setSubmittingPlan(true);
+      await adminService.createInvestmentPlan({
+        name: newPlan.name,
+        minAmount: newPlan.minAmount,
+        maxAmount: newPlan.maxAmount,
+        roi: newPlan.roi,
+        duration: newPlan.duration,
+        description: newPlan.description,
+        features: newPlan.features.split(',').map(f => f.trim())
+      });
+      setNewPlan({ name: '', minAmount: 0, maxAmount: 0, roi: 0, duration: 30, description: '', features: '' });
+      setShowPlanForm(false);
+      await loadData();
+      alert('Investment plan created successfully');
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setSubmittingPlan(false);
+    }
+  };
+
+  const handleSuspendUser = async (userId: string) => {
+    if (!window.confirm('Are you sure you want to suspend this user?')) return;
+
+    try {
+      setSuspendingUserId(userId);
+      await adminService.suspendUser(userId, 'Suspended by admin');
+      await loadData();
+      alert('User suspended successfully');
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setSuspendingUserId(null);
+    }
+  };
+
+  const handleUnsuspendUser = async (userId: string) => {
+    if (!window.confirm('Are you sure you want to unsuspend this user?')) return;
+
+    try {
+      setSuspendingUserId(userId);
+      await adminService.unsuspendUser(userId);
+      await loadData();
+      alert('User unsuspended successfully');
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setSuspendingUserId(null);
+    }
+  };
+
+  const filteredUsers = useMemo(() => {
+    if (!searchUser.trim()) return users;
+    return users.filter(u => 
+      u.name.toLowerCase().includes(searchUser.toLowerCase()) ||
+      u.email.toLowerCase().includes(searchUser.toLowerCase())
+    );
+  }, [users, searchUser]);
+
+  return (
+    <DashboardShell title="Admin Settings" user={user} onLogout={onLogout}>
+      {/* Tab Navigation */}
+      <div className="flex gap-2 mb-8 border-b border-slate-200 dark:border-white/10">
+        {[
+          { id: 'addresses', label: 'Payment Addresses', icon: Layers },
+          { id: 'plans', label: 'Investment Plans', icon: PieChart },
+          { id: 'users', label: 'User Management', icon: Users }
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-6 py-4 font-bold flex items-center gap-2 border-b-2 transition-all ${
+              activeTab === tab.id
+                ? 'border-amber-500 text-amber-500'
+                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-amber-500'
+            }`}
+          >
+            <tab.icon size={20} /> {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="animate-spin text-amber-500" size={40} />
+        </div>
+      ) : error ? (
+        <div className="p-6 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500">
+          <p className="font-bold">{error}</p>
+        </div>
+      ) : (
+        <>
+          {/* Payment Addresses Tab */}
+          {activeTab === 'addresses' && (
+            <>
+              <div className="mb-8">
+                {!showAddressForm ? (
+                  <button
+                    onClick={() => setShowAddressForm(true)}
+                    className="px-8 py-4 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl transition-all flex items-center gap-2"
+                  >
+                    <Plus size={20} /> Add Payment Address
+                  </button>
+                ) : (
+                  <div className="max-w-2xl">
+                    <div className="glass-card rounded-[2.5rem] p-12 border border-slate-200 dark:border-white/10">
+                      <h3 className="text-2xl font-bold mb-8">Add Payment Address</h3>
+                      <form onSubmit={handleAddAddress} className="space-y-6">
+                        <div>
+                          <label className="text-sm font-bold uppercase tracking-widest mb-3 block text-slate-600 dark:text-slate-400">Cryptocurrency</label>
+                          <select
+                            value={newAddress.crypto}
+                            onChange={(e) => setNewAddress({...newAddress, crypto: e.target.value})}
+                            className="w-full px-6 py-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                          >
+                            <option value="BTC">Bitcoin (BTC)</option>
+                            <option value="ETH">Ethereum (ETH)</option>
+                            <option value="USDT">Tether (USDT)</option>
+                            <option value="USDC">USD Coin (USDC)</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-sm font-bold uppercase tracking-widest mb-3 block text-slate-600 dark:text-slate-400">Wallet Address</label>
+                          <input
+                            type="text"
+                            value={newAddress.address}
+                            onChange={(e) => setNewAddress({...newAddress, address: e.target.value})}
+                            placeholder="Enter cryptocurrency address"
+                            className="w-full px-6 py-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                          />
+                        </div>
+                        <div className="flex gap-4">
+                          <button
+                            type="submit"
+                            disabled={submittingAddress}
+                            className="flex-1 py-4 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                          >
+                            {submittingAddress ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle2 size={20} />}
+                            {submittingAddress ? 'Adding...' : 'Add Address'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowAddressForm(false)}
+                            className="flex-1 py-4 bg-slate-200 dark:bg-white/10 text-slate-900 dark:text-white font-bold rounded-xl transition-all"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Addresses List */}
+              <div className="glass-card rounded-[2.5rem] p-8 border border-slate-200 dark:border-white/10">
+                <h3 className="text-xl font-bold mb-6">Active Payment Addresses ({paymentAddresses.length})</h3>
+                {paymentAddresses.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {paymentAddresses.map((addr) => (
+                      <div key={addr.id} className="p-6 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
+                        <div className="flex items-start justify-between mb-3">
+                          <h4 className="font-bold text-lg text-amber-500">{addr.crypto}</h4>
+                          <button
+                            onClick={() => handleDeleteAddress(addr.id)}
+                            className="p-2 hover:bg-red-500/20 rounded-lg text-red-500 transition-all"
+                          >
+                            <X size={20} />
+                          </button>
+                        </div>
+                        <p className="text-xs font-mono text-slate-600 dark:text-slate-400 break-all mb-2">{addr.address}</p>
+                        <p className="text-[10px] text-slate-500">Added: {new Date(addr.createdAt).toLocaleDateString()}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-slate-500 text-center py-12">No payment addresses configured yet</p>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Investment Plans Tab */}
+          {activeTab === 'plans' && (
+            <>
+              <div className="mb-8">
+                {!showPlanForm ? (
+                  <button
+                    onClick={() => setShowPlanForm(true)}
+                    className="px-8 py-4 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl transition-all flex items-center gap-2"
+                  >
+                    <Plus size={20} /> Create Investment Plan
+                  </button>
+                ) : (
+                  <div className="max-w-2xl">
+                    <div className="glass-card rounded-[2.5rem] p-12 border border-slate-200 dark:border-white/10">
+                      <h3 className="text-2xl font-bold mb-8">Create Investment Plan</h3>
+                      <form onSubmit={handleAddPlan} className="space-y-6">
+                        <div>
+                          <label className="text-sm font-bold uppercase tracking-widest mb-3 block text-slate-600 dark:text-slate-400">Plan Name</label>
+                          <input
+                            type="text"
+                            value={newPlan.name}
+                            onChange={(e) => setNewPlan({...newPlan, name: e.target.value})}
+                            placeholder="e.g., Platinum Tier"
+                            className="w-full px-6 py-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-sm font-bold uppercase tracking-widest mb-3 block text-slate-600 dark:text-slate-400">Min Amount ($)</label>
+                            <input
+                              type="number"
+                              value={newPlan.minAmount}
+                              onChange={(e) => setNewPlan({...newPlan, minAmount: parseFloat(e.target.value) || 0})}
+                              placeholder="e.g., 50000"
+                              className="w-full px-6 py-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-bold uppercase tracking-widest mb-3 block text-slate-600 dark:text-slate-400">Max Amount ($)</label>
+                            <input
+                              type="number"
+                              value={newPlan.maxAmount}
+                              onChange={(e) => setNewPlan({...newPlan, maxAmount: parseFloat(e.target.value) || 0})}
+                              placeholder="e.g., 100000"
+                              className="w-full px-6 py-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-sm font-bold uppercase tracking-widest mb-3 block text-slate-600 dark:text-slate-400">ROI % (Annually)</label>
+                            <input
+                              type="number"
+                              value={newPlan.roi}
+                              onChange={(e) => setNewPlan({...newPlan, roi: parseFloat(e.target.value) || 0})}
+                              placeholder="e.g., 45"
+                              className="w-full px-6 py-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-bold uppercase tracking-widest mb-3 block text-slate-600 dark:text-slate-400">Duration (Days)</label>
+                            <input
+                              type="number"
+                              value={newPlan.duration}
+                              onChange={(e) => setNewPlan({...newPlan, duration: parseInt(e.target.value) || 30})}
+                              placeholder="e.g., 30"
+                              className="w-full px-6 py-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-sm font-bold uppercase tracking-widest mb-3 block text-slate-600 dark:text-slate-400">Description (Optional)</label>
+                          <input
+                            type="text"
+                            value={newPlan.description}
+                            onChange={(e) => setNewPlan({...newPlan, description: e.target.value})}
+                            placeholder="Plan description"
+                            className="w-full px-6 py-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-bold uppercase tracking-widest mb-3 block text-slate-600 dark:text-slate-400">Features (comma-separated)</label>
+                          <input
+                            type="text"
+                            value={newPlan.features}
+                            onChange={(e) => setNewPlan({...newPlan, features: e.target.value})}
+                            placeholder="e.g., VIP support, Early access, Priority execution"
+                            className="w-full px-6 py-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                          />
+                        </div>
+                        <div className="flex gap-4">
+                          <button
+                            type="submit"
+                            disabled={submittingPlan}
+                            className="flex-1 py-4 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                          >
+                            {submittingPlan ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle2 size={20} />}
+                            {submittingPlan ? 'Creating...' : 'Create Plan'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowPlanForm(false)}
+                            className="flex-1 py-4 bg-slate-200 dark:bg-white/10 text-slate-900 dark:text-white font-bold rounded-xl transition-all"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Plans List */}
+              <div className="glass-card rounded-[2.5rem] p-8 border border-slate-200 dark:border-white/10">
+                <h3 className="text-xl font-bold mb-6">Investment Plans ({investmentPlans.length})</h3>
+                {investmentPlans.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {investmentPlans.map((plan) => (
+                      <div key={plan.id} className="p-6 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
+                        <div className="flex items-start justify-between mb-3">
+                          <h4 className="font-bold text-lg">{plan.name}</h4>
+                        </div>
+                        <p className="text-sm text-amber-500 font-bold mb-2">{plan.roi}% ROI</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">${plan.minAmount?.toLocaleString()} - ${plan.maxAmount?.toLocaleString()}</p>
+                        <p className="text-xs text-slate-500 mb-3">Duration: {plan.duration} days</p>
+                        <div className="space-y-1">
+                          {plan.features?.slice(0, 3).map((f: string, i: number) => (
+                            <p key={i} className="text-xs text-slate-500 flex items-center gap-2">
+                              <CheckCircle2 size={14} className="text-emerald-500" /> {f}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-slate-500 text-center py-12">No investment plans created yet</p>
+                )}
+              </div>
+            </>
+          )}
+          {/* User Management Tab */}
+          {activeTab === 'users' && (
+            <>
+              <div className="mb-8">
+                <div className="flex gap-4">
+                  <input
+                    type="text"
+                    value={searchUser}
+                    onChange={(e) => setSearchUser(e.target.value)}
+                    placeholder="Search by name or email..."
+                    className="flex-1 px-6 py-4 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                  />
+                  {searchUser && (
+                    <button
+                      onClick={() => setSearchUser('')}
+                      className="px-6 py-4 bg-slate-200 dark:bg-white/10 rounded-2xl font-bold transition-all"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Users List */}
+              <div className="glass-card rounded-[2.5rem] p-8 border border-slate-200 dark:border-white/10">
+                <h3 className="text-xl font-bold mb-6">Users ({filteredUsers.length})</h3>
+                {filteredUsers.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 dark:border-white/5">
+                          <th className="pb-4 font-black text-slate-400">Name</th>
+                          <th className="pb-4 font-black text-slate-400">Email</th>
+                          <th className="pb-4 font-black text-slate-400">Role</th>
+                          <th className="pb-4 font-black text-slate-400">KYC Status</th>
+                          <th className="pb-4 font-black text-slate-400">Status</th>
+                          <th className="pb-4 font-black text-slate-400">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredUsers.map((u) => (
+                          <tr key={u.id} className="border-b border-slate-200 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-white/5 transition">
+                            <td className="py-4 font-bold">{u.name}</td>
+                            <td className="py-4 text-xs text-slate-600 dark:text-slate-400">{u.email}</td>
+                            <td className="py-4">
+                              <span className="inline-block px-3 py-1 bg-slate-200 dark:bg-white/10 rounded-full text-xs font-bold">
+                                {u.role.replace('_', ' ')}
+                              </span>
+                            </td>
+                            <td className="py-4">
+                              <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
+                                u.kycStatus === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' :
+                                u.kycStatus === 'PENDING' ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400' :
+                                'bg-red-500/20 text-red-600 dark:text-red-400'
+                              }`}>
+                                {u.kycStatus}
+                              </span>
+                            </td>
+                            <td className="py-4">
+                              <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
+                                u.status === 'ACTIVE' ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' :
+                                'bg-red-500/20 text-red-600 dark:text-red-400'
+                              }`}>
+                                {u.status}
+                              </span>
+                            </td>
+                            <td className="py-4">
+                              {u.status === 'ACTIVE' ? (
+                                <button
+                                  onClick={() => handleSuspendUser(u.id)}
+                                  disabled={suspendingUserId === u.id}
+                                  className="px-3 py-2 bg-red-500/20 text-red-600 dark:text-red-400 font-bold rounded-lg hover:bg-red-500/30 transition-all disabled:opacity-50 text-xs"
+                                >
+                                  {suspendingUserId === u.id ? <Loader2 size={14} className="inline animate-spin" /> : 'Suspend'}
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleUnsuspendUser(u.id)}
+                                  disabled={suspendingUserId === u.id}
+                                  className="px-3 py-2 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold rounded-lg hover:bg-emerald-500/30 transition-all disabled:opacity-50 text-xs"
+                                >
+                                  {suspendingUserId === u.id ? <Loader2 size={14} className="inline animate-spin" /> : 'Unsuspend'}
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-slate-500 text-center py-12">
+                    {searchUser ? 'No users match your search' : 'No users found'}
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </DashboardShell>
+  );
+};
+
 const AdminDashboard = ({ user, onLogout }: any) => {
+  const navigate = useNavigate();
   const [stats, setStats] = useState<any>(null);
   const [kycRequests, setKycRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -885,6 +1404,16 @@ const AdminDashboard = ({ user, onLogout }: any) => {
         </div>
       ) : stats ? (
         <>
+          <div className="mb-8 flex items-center justify-between">
+            <h2 className="text-3xl font-black">Dashboard Overview</h2>
+            <button
+              onClick={() => navigate('/admin/settings')}
+              className="px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl transition-all flex items-center gap-2"
+            >
+              <Settings size={20} /> Settings
+            </button>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             {[
               { label: 'Total Clients', value: stats.overview.totalUsers.toString(), icon: Users },
@@ -1584,6 +2113,12 @@ const AppContent: React.FC<{
         <Route path="/admin" element={
           <ProtectedRoute user={user} allowedRoles={['TENANT_ADMIN']}>
             <AdminDashboard user={user} onLogout={handleLogout} />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/admin/settings" element={
+          <ProtectedRoute user={user} allowedRoles={['TENANT_ADMIN']}>
+            <AdminSettings user={user} onLogout={handleLogout} />
           </ProtectedRoute>
         } />
         

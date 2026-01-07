@@ -465,5 +465,5 @@ export const adminService = {
       console.error('Delete payment address error:', error.message);
       throw error;
     }
-  },
-
+  }
+};
