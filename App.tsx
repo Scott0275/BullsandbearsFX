@@ -53,6 +53,7 @@ import { transactionService } from './services/transactionService';
 import { investmentService } from './services/investmentService';
 import { adminService } from './services/adminService';
 import { dashboardService } from './services/dashboardService';
+import { kycService } from './services/kycService';
 import { CryptoAsset } from './types';
 import { INVESTMENT_PLANS, SERVICES, WHY_CHOOSE_US, FAQS, TESTIMONIALS } from './constants';
 
@@ -486,19 +487,26 @@ const InvestorDashboard = ({ user, onLogout }: any) => {
 
 const AdminDashboard = ({ user, onLogout }: any) => {
   const [stats, setStats] = useState<any>(null);
+  const [kycRequests, setKycRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [approving, setApproving] = useState<string | null>(null);
+  const [rejecting, setRejecting] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState<{ [key: string]: string }>({});
 
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true);
-        const statsData = await adminService.getStats();
+        const [statsData, kycData] = await Promise.all([
+          adminService.getStats(),
+          kycService.listKYCRequests(1, 10)
+        ]);
         setStats(statsData);
+        setKycRequests(kycData.items || []);
         setError(null);
       } catch (err: any) {
-        console.error('Failed to load admin stats:', err);
+        console.error('Failed to load admin data:', err);
         setError(err.message || 'Failed to load admin dashboard');
       } finally {
         setLoading(false);
@@ -516,9 +524,49 @@ const AdminDashboard = ({ user, onLogout }: any) => {
       const statsData = await adminService.getStats();
       setStats(statsData);
     } catch (err: any) {
-      console.error('Failed to approve:', err);
+      console.error('Failed to approve transaction:', err);
+      alert(err.message);
     } finally {
       setApproving(null);
+    }
+  };
+
+  const handleApproveKYC = async (kycRequestId: string) => {
+    try {
+      setApproving(kycRequestId);
+      await kycService.approveKYC(kycRequestId);
+      // Reload KYC requests
+      const kycData = await kycService.listKYCRequests(1, 10);
+      setKycRequests(kycData.items || []);
+      alert('KYC request approved successfully');
+    } catch (err: any) {
+      console.error('Failed to approve KYC:', err);
+      alert(err.message);
+    } finally {
+      setApproving(null);
+    }
+  };
+
+  const handleRejectKYC = async (kycRequestId: string) => {
+    const reason = rejectReason[kycRequestId] || 'No reason provided';
+    if (!reason || reason.trim().length === 0) {
+      alert('Please provide a rejection reason');
+      return;
+    }
+
+    try {
+      setRejecting(kycRequestId);
+      await kycService.rejectKYC(kycRequestId, reason);
+      // Reload KYC requests
+      const kycData = await kycService.listKYCRequests(1, 10);
+      setKycRequests(kycData.items || []);
+      setRejectReason({ ...rejectReason, [kycRequestId]: '' });
+      alert('KYC request rejected successfully');
+    } catch (err: any) {
+      console.error('Failed to reject KYC:', err);
+      alert(err.message);
+    } finally {
+      setRejecting(null);
     }
   };
 
@@ -534,12 +582,12 @@ const AdminDashboard = ({ user, onLogout }: any) => {
         </div>
       ) : stats ? (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             {[
               { label: 'Total Clients', value: stats.overview.totalUsers.toString(), icon: Users },
               { label: 'Total AUM', value: `$${(stats.overview.totalAUM / 1000000).toFixed(1)}M`, icon: BarChart3 },
               { label: 'Pending Approvals', value: stats.transactions.pending.count.toString(), icon: Clock },
-              { label: 'Total Approved', value: stats.transactions.approved.toString(), icon: CheckCircle2 }
+              { label: 'Pending KYC', value: kycRequests.length.toString(), icon: ShieldAlert }
             ].map((stat, i) => (
               <div key={i} className="glass-card p-6 rounded-[2rem] border border-slate-200 dark:border-white/10">
                 <div className="flex items-center gap-3 mb-3">
@@ -553,12 +601,67 @@ const AdminDashboard = ({ user, onLogout }: any) => {
             ))}
           </div>
 
-          <div className="mt-8 p-8 glass-card rounded-[2.5rem] border border-slate-200 dark:border-white/10">
+          {/* KYC Requests Queue */}
+          <div className="mb-8 p-8 glass-card rounded-[2.5rem] border border-slate-200 dark:border-white/10">
+            <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+              <ShieldCheck size={20} /> KYC Verification Requests ({kycRequests.length})
+            </h3>
+            {kycRequests.length > 0 ? (
+              <div className="space-y-4 max-h-96 overflow-y-auto scrollbar-hide">
+                {kycRequests.map((kyc: any) => (
+                  <div key={kyc.id} className="p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <p className="font-bold text-sm">{kyc.firstName} {kyc.lastName}</p>
+                        <p className="text-xs text-slate-500">ID Type: {kyc.idType} | Submitted: {new Date(kyc.submittedAt).toLocaleDateString()}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${kyc.status === 'PENDING' ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-500/20 text-slate-400'}`}>
+                          {kyc.status}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      <button
+                        onClick={() => handleApproveKYC(kyc.id)}
+                        disabled={approving === kyc.id}
+                        className="flex-1 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {approving === kyc.id ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                        Approve
+                      </button>
+                      <div className="flex-1 flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Reason for rejection..."
+                          value={rejectReason[kyc.id] || ''}
+                          onChange={(e) => setRejectReason({ ...rejectReason, [kyc.id]: e.target.value })}
+                          className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-sm placeholder-slate-500 focus:outline-none focus:border-red-500"
+                        />
+                        <button
+                          onClick={() => handleRejectKYC(kyc.id)}
+                          disabled={rejecting === kyc.id}
+                          className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          {rejecting === kyc.id ? <Loader2 size={16} className="animate-spin" /> : 'Reject'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-slate-500 text-center py-6">No pending KYC requests</p>
+            )}
+          </div>
+
+          {/* Pending Transactions */}
+          <div className="mb-8 p-8 glass-card rounded-[2.5rem] border border-slate-200 dark:border-white/10">
             <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
               <Clock size={20} /> Pending Transactions ({stats.transactions.pending.count})
             </h3>
             {stats.transactions.pending.details.length > 0 ? (
-              <div className="space-y-4">
+              <div className="space-y-4 max-h-96 overflow-y-auto scrollbar-hide">
                 {stats.transactions.pending.details.slice(0, 10).map((txn: any) => (
                   <div key={txn.id} className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-2xl">
                     <div className="flex items-center gap-4 flex-grow">
@@ -591,8 +694,9 @@ const AdminDashboard = ({ user, onLogout }: any) => {
             )}
           </div>
 
-          <div className="mt-8 p-8 glass-card rounded-[2.5rem] border border-slate-200 dark:border-white/10">
-            <h3 className="text-xl font-bold mb-6">Active Investments</h3>
+          {/* Investment Summary */}
+          <div className="p-8 glass-card rounded-[2.5rem] border border-slate-200 dark:border-white/10">
+            <h3 className="text-xl font-bold mb-6">Investment Analytics</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
                 { label: 'Active', value: stats.investments.active.toString(), color: 'emerald' },
