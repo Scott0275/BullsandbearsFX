@@ -52,6 +52,7 @@ import { walletService } from './services/walletService';
 import { transactionService } from './services/transactionService';
 import { investmentService } from './services/investmentService';
 import { adminService } from './services/adminService';
+import { dashboardService } from './services/dashboardService';
 import { CryptoAsset } from './types';
 import { INVESTMENT_PLANS, SERVICES, WHY_CHOOSE_US, FAQS, TESTIMONIALS } from './constants';
 
@@ -290,9 +291,7 @@ const DashboardShell = ({ title, children, user, onLogout }: any) => {
 };
 
 const InvestorDashboard = ({ user, onLogout }: any) => {
-  const [wallet, setWallet] = useState<any>(null);
-  const [investments, setInvestments] = useState<any[]>([]);
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [dashboardData, setDashboardData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -300,18 +299,11 @@ const InvestorDashboard = ({ user, onLogout }: any) => {
     const loadData = async () => {
       try {
         setLoading(true);
-        const [walletData, investmentsData, transactionsData] = await Promise.all([
-          walletService.getWallet(),
-          investmentService.listInvestments(),
-          transactionService.listTransactions(1, 10)
-        ]);
-
-        setWallet(walletData.wallet);
-        setInvestments(investmentsData.investments || []);
-        setTransactions(walletData.transactions || []);
+        const data = await dashboardService.getInvestorDashboard();
+        setDashboardData(data);
         setError(null);
       } catch (err: any) {
-        console.error('Failed to load investor data:', err);
+        console.error('Failed to load investor dashboard:', err);
         setError(err.message || 'Failed to load dashboard data');
       } finally {
         setLoading(false);
@@ -321,82 +313,172 @@ const InvestorDashboard = ({ user, onLogout }: any) => {
     loadData();
   }, []);
 
-  return (
-    <DashboardShell title="Investor Dashboard" user={user} onLogout={onLogout}>
-      {loading ? (
+  if (loading) {
+    return (
+      <DashboardShell title="Investor Dashboard" user={user} onLogout={onLogout}>
         <div className="flex items-center justify-center py-12">
           <Loader2 className="animate-spin text-amber-500" size={40} />
         </div>
-      ) : error ? (
+      </DashboardShell>
+    );
+  }
+
+  if (error) {
+    return (
+      <DashboardShell title="Investor Dashboard" user={user} onLogout={onLogout}>
         <div className="p-6 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500">
           <p className="font-bold">{error}</p>
         </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[
-              { label: 'Wallet Balance', value: `$${wallet?.balance?.toFixed(2) || '0.00'}`, icon: CreditCard, color: 'emerald' },
-              { label: 'Active Investments', value: investments.filter(inv => inv.status === 'ACTIVE').length.toString(), icon: Repeat, color: 'blue' },
-              { label: 'Expected Returns', value: `$${investments.reduce((sum, inv) => sum + (inv.expectedReturn || 0), 0).toFixed(2)}`, icon: ArrowUpRight, color: 'amber' }
-            ].map((stat, i) => (
-              <div key={i} className="glass-card p-8 rounded-[2rem] border border-slate-200 dark:border-white/10 shadow-xl shadow-slate-200/20 dark:shadow-none">
-                <div className={`p-3 bg-${stat.color}-500/10 text-${stat.color}-500 w-fit rounded-xl mb-4`}>
-                  <stat.icon size={24} />
+      </DashboardShell>
+    );
+  }
+
+  if (!dashboardData) {
+    return (
+      <DashboardShell title="Investor Dashboard" user={user} onLogout={onLogout}>
+        <div className="text-center py-12">
+          <p className="text-slate-500">No dashboard data available</p>
+        </div>
+      </DashboardShell>
+    );
+  }
+
+  const wallet = dashboardData.wallet;
+  const investments = dashboardData.investments;
+  const transactions = dashboardData.transactions || [];
+  const kycStatus = dashboardData.kycStatus;
+  const unreadNotifications = dashboardData.unreadNotifications || 0;
+  const paymentAddresses = dashboardData.paymentAddresses || [];
+
+  // Get KYC badge styling
+  const getKYCBadgeStyle = () => {
+    switch (kycStatus) {
+      case 'APPROVED':
+        return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/20';
+      case 'PENDING':
+        return 'bg-amber-500/20 text-amber-400 border-amber-500/20';
+      case 'REJECTED':
+        return 'bg-red-500/20 text-red-400 border-red-500/20';
+      default:
+        return 'bg-slate-500/20 text-slate-400 border-slate-500/20';
+    }
+  };
+
+  return (
+    <DashboardShell title="Investor Dashboard" user={user} onLogout={onLogout}>
+      {/* KYC Status & Notifications Bar */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <div className={`glass-card p-4 rounded-2xl border ${getKYCBadgeStyle()} flex items-center justify-between`}>
+          <div>
+            <p className="text-sm font-bold uppercase tracking-widest mb-1">KYC Status</p>
+            <p className="text-lg font-bold capitalize">{kycStatus.replace('_', ' ')}</p>
+          </div>
+          <ShieldCheck size={32} />
+        </div>
+        <div className="glass-card p-4 rounded-2xl border border-blue-500/20 flex items-center justify-between bg-blue-500/5">
+          <div>
+            <p className="text-sm font-bold uppercase tracking-widest text-blue-400 mb-1">Unread Notifications</p>
+            <p className="text-lg font-bold text-blue-400">{unreadNotifications} new</p>
+          </div>
+          <MessageCircle size={32} className="text-blue-400" />
+        </div>
+      </div>
+
+      {/* Main Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        {[
+          { label: 'Wallet Balance', value: `$${wallet?.balance?.toFixed(2) || '0.00'}`, icon: CreditCard, color: 'emerald' },
+          { label: 'Total Invested', value: `$${wallet?.totalInvested?.toFixed(2) || '0.00'}`, icon: Briefcase, color: 'blue' },
+          { label: 'Total Earned', value: `$${wallet?.totalEarned?.toFixed(2) || '0.00'}`, icon: ArrowUpRight, color: 'amber' }
+        ].map((stat, i) => (
+          <div key={i} className="glass-card p-8 rounded-[2rem] border border-slate-200 dark:border-white/10 shadow-xl shadow-slate-200/20 dark:shadow-none">
+            <div className={`p-3 bg-${stat.color}-500/10 text-${stat.color}-500 w-fit rounded-xl mb-4`}>
+              <stat.icon size={24} />
+            </div>
+            <p className="text-sm text-slate-500 dark:text-gray-400 font-bold uppercase tracking-widest">{stat.label}</p>
+            <p className="text-3xl font-black mt-1 tracking-tight">{stat.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Investment Summary & Recent Activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+        {/* Investment Stats */}
+        <div className="glass-card rounded-[2.5rem] p-8 border border-slate-200 dark:border-white/10">
+          <h3 className="text-xl font-bold mb-6">Investment Summary</h3>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-2xl">
+              <div className="flex items-center gap-3">
+                <Repeat size={20} className="text-blue-500" />
+                <div>
+                  <p className="font-bold text-sm">Active Investments</p>
+                  <p className="text-xs text-slate-500">ongoing</p>
                 </div>
-                <p className="text-sm text-slate-500 dark:text-gray-400 font-bold uppercase tracking-widest">{stat.label}</p>
-                <p className="text-3xl font-black mt-1 tracking-tight">{stat.value}</p>
+              </div>
+              <p className="font-bold text-lg text-blue-500">{investments?.active || 0}</p>
+            </div>
+            <div className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-2xl">
+              <div className="flex items-center gap-3">
+                <CheckCircle2 size={20} className="text-emerald-500" />
+                <div>
+                  <p className="font-bold text-sm">Completed</p>
+                  <p className="text-xs text-slate-500">finished</p>
+                </div>
+              </div>
+              <p className="font-bold text-lg text-emerald-500">{investments?.completed || 0}</p>
+            </div>
+            <div className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-2xl">
+              <div className="flex items-center gap-3">
+                <TrendingUp size={20} className="text-amber-500" />
+                <div>
+                  <p className="font-bold text-sm">Total Value</p>
+                  <p className="text-xs text-slate-500">portfolio</p>
+                </div>
+              </div>
+              <p className="font-bold text-lg text-amber-500">${investments?.totalValue?.toFixed(2) || '0.00'}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Transactions */}
+        <div className="lg:col-span-2 glass-card rounded-[2.5rem] p-8 border border-slate-200 dark:border-white/10">
+          <h3 className="text-xl font-bold mb-6">Recent Transactions</h3>
+          <div className="space-y-4 max-h-96 overflow-y-auto scrollbar-hide">
+            {transactions.length > 0 ? (
+              transactions.slice(0, 5).map((txn) => (
+                <div key={txn.id} className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-2xl hover:bg-slate-200 dark:hover:bg-white/10 transition">
+                  <div>
+                    <p className="font-bold text-sm">{txn.type.replace(/_/g, ' ')}</p>
+                    <p className="text-xs text-slate-500">{new Date(txn.createdAt).toLocaleDateString()} {new Date(txn.createdAt).toLocaleTimeString()}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className={`font-bold ${txn.type.includes('CREDIT') || txn.type.includes('ROI') ? 'text-emerald-500' : 'text-red-500'}`}>
+                      {txn.type.includes('CREDIT') || txn.type.includes('ROI') ? '+' : '-'}${txn.amount.toFixed(2)}
+                    </p>
+                    <p className={`text-xs ${txn.status === 'APPROVED' ? 'text-emerald-500' : txn.status === 'PENDING' ? 'text-amber-500' : 'text-red-500'}`}>{txn.status}</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-slate-500 text-center py-6">No transactions yet</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Payment Addresses for Deposits */}
+      {paymentAddresses.length > 0 && (
+        <div className="glass-card rounded-[2.5rem] p-8 border border-slate-200 dark:border-white/10">
+          <h3 className="text-xl font-bold mb-6">Deposit Payment Addresses</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {paymentAddresses.map((addr) => (
+              <div key={addr.id} className="p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
+                <p className="font-bold text-sm mb-2 text-slate-600 dark:text-slate-300">{addr.crypto}</p>
+                <p className="text-xs font-mono text-slate-500 break-all">{addr.address}</p>
               </div>
             ))}
           </div>
-
-          <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="glass-card rounded-[2.5rem] p-8 border border-slate-200 dark:border-white/10">
-              <h3 className="text-xl font-bold mb-6">Recent Investments</h3>
-              <div className="space-y-4">
-                {investments.slice(0, 5).length > 0 ? (
-                  investments.slice(0, 5).map((inv) => (
-                    <div key={inv.id} className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-2xl">
-                      <div>
-                        <p className="font-bold text-sm">{inv.planName}</p>
-                        <p className="text-xs text-slate-500">Status: <span className={inv.status === 'ACTIVE' ? 'text-emerald-500' : 'text-slate-400'}>{inv.status}</span></p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-amber-500">${inv.amount.toFixed(2)}</p>
-                        <p className="text-xs text-slate-500">{inv.roiPercentage}% ROI</p>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-slate-500 text-center py-6">No investments yet</p>
-                )}
-              </div>
-            </div>
-
-            <div className="glass-card rounded-[2.5rem] p-8 border border-slate-200 dark:border-white/10">
-              <h3 className="text-xl font-bold mb-6">Transaction History</h3>
-              <div className="space-y-4">
-                {transactions.slice(0, 5).length > 0 ? (
-                  transactions.slice(0, 5).map((txn) => (
-                    <div key={txn.id} className="flex items-center justify-between p-4 bg-slate-100 dark:bg-white/5 rounded-2xl">
-                      <div>
-                        <p className="font-bold text-sm">{txn.type}</p>
-                        <p className="text-xs text-slate-500">{new Date(txn.createdAt).toLocaleDateString()}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className={`font-bold ${txn.type.includes('CREDIT') ? 'text-emerald-500' : 'text-red-500'}`}>
-                          {txn.type.includes('CREDIT') ? '+' : '-'}${txn.amount.toFixed(2)}
-                        </p>
-                        <p className={`text-xs ${txn.status === 'APPROVED' ? 'text-emerald-500' : txn.status === 'PENDING' ? 'text-amber-500' : 'text-red-500'}`}>{txn.status}</p>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-slate-500 text-center py-6">No transactions yet</p>
-                )}
-              </div>
-            </div>
-          </div>
-        </>
+        </div>
       )}
     </DashboardShell>
   );
