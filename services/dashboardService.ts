@@ -51,13 +51,13 @@ export interface InvestorDashboardData {
 export const dashboardService = {
   /**
    * Get investor dashboard data
-   * Backend: GET /api/investor/dashboard
+   * Backend: GET /api/dashboard/investor
    * Returns: wallet, investments, transactions, kycStatus, notifications
    */
   async getInvestorDashboard(): Promise<InvestorDashboardData> {
     try {
       // SIMPLE: Call one backend endpoint
-      const response = await fetch(`${API_URL}/api/investor/dashboard`, {
+      const response = await fetch(`${API_URL}/api/dashboard/investor`, {
         method: 'GET',
         headers: getHeaders(),
       });
@@ -101,13 +101,13 @@ export const dashboardService = {
 
   /**
    * Get admin dashboard data (for TENANT_ADMIN and SUPER_ADMIN)
-   * Backend: GET /api/admin/dashboard
+   * Backend: GET /api/dashboard/admin
    * Returns: overview, pendingTransactions, kycRequests, investmentStats
    */
   async getAdminDashboard(): Promise<any> {
     try {
       // SIMPLE: Call one backend endpoint
-      const response = await fetch(`${API_URL}/api/admin/dashboard`, {
+      const response = await fetch(`${API_URL}/api/dashboard/admin`, {
         method: 'GET',
         headers: getHeaders(),
       });
@@ -151,12 +151,12 @@ export const dashboardService = {
 
   /**
    * Get super admin dashboard data
-   * Backend: GET /api/super-admin/dashboard
+   * Backend: GET /api/dashboard/super-admin
    * Returns: Platform-wide metrics, user management stats, ROI distribution info
    */
   async getSuperAdminDashboard(): Promise<any> {
     try {
-      const response = await fetch(`${API_URL}/api/super-admin/dashboard`, {
+      const response = await fetch(`${API_URL}/api/dashboard/super-admin`, {
         method: 'GET',
         headers: getHeaders(),
       });
