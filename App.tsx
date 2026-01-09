@@ -647,6 +647,42 @@ const InvestorDashboard = ({ user, onLogout }: any) => {
     }
   };
 
+  // Extract values safely (before useMemo to avoid hook order issues)
+  const wallet = dashboardData?.wallet || null;
+  const investments = dashboardData?.investments || null;
+  const transactions = dashboardData?.transactions || [];
+  const kycStatus = dashboardData?.kycStatus || 'NOT_SUBMITTED';
+  const unreadNotifications = dashboardData?.unreadNotifications || 0;
+  const paymentAddresses = dashboardData?.paymentAddresses || [];
+
+  // All hooks must be called at top level before any conditional returns
+  const filteredTransactions = useMemo(() => {
+    if (!transactions || transactions.length === 0) return [];
+    
+    let filtered = [...transactions];
+    
+    if (filterType !== 'ALL') {
+      filtered = filtered.filter(txn => txn.type === filterType);
+    }
+    
+    if (filterStatus !== 'ALL') {
+      filtered = filtered.filter(txn => txn.status === filterStatus);
+    }
+    
+    // Sort transactions
+    if (sortBy === 'date-desc') {
+      filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    } else if (sortBy === 'date-asc') {
+      filtered.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    } else if (sortBy === 'amount-desc') {
+      filtered.sort((a, b) => b.amount - a.amount);
+    } else if (sortBy === 'amount-asc') {
+      filtered.sort((a, b) => a.amount - b.amount);
+    }
+    
+    return filtered;
+  }, [transactions, filterType, filterStatus, sortBy]);
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -709,39 +745,6 @@ const InvestorDashboard = ({ user, onLogout }: any) => {
       </DashboardShell>
     );
   }
-
-  const wallet = dashboardData.wallet;
-  const investments = dashboardData.investments;
-  const transactions = dashboardData.transactions || [];
-  const kycStatus = dashboardData.kycStatus;
-  const unreadNotifications = dashboardData.unreadNotifications || 0;
-  const paymentAddresses = dashboardData.paymentAddresses || [];
-
-  // Filtered and sorted transactions
-  const filteredTransactions = useMemo(() => {
-    let filtered = [...transactions];
-    
-    if (filterType !== 'ALL') {
-      filtered = filtered.filter(txn => txn.type === filterType);
-    }
-    
-    if (filterStatus !== 'ALL') {
-      filtered = filtered.filter(txn => txn.status === filterStatus);
-    }
-    
-    // Sort transactions
-    if (sortBy === 'date-desc') {
-      filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    } else if (sortBy === 'date-asc') {
-      filtered.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-    } else if (sortBy === 'amount-desc') {
-      filtered.sort((a, b) => b.amount - a.amount);
-    } else if (sortBy === 'amount-asc') {
-      filtered.sort((a, b) => a.amount - b.amount);
-    }
-    
-    return filtered;
-  }, [transactions, filterType, filterStatus, sortBy]);
 
   return (
     <DashboardShell title="Investor Dashboard" user={user} onLogout={onLogout}>
