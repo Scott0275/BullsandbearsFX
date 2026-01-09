@@ -1835,7 +1835,7 @@ const ReferralDashboard = ({ user, onLogout }: any) => {
                 <p className="text-xs text-slate-400 font-black uppercase tracking-widest">Your Referral Code</p>
               </div>
               <div className="flex items-center gap-3">
-                <p className="text-3xl font-black text-amber-500">{referralStats.referralCode}</p>
+                <p className="text-3xl font-black text-amber-500">{referralStats.referralCode ?? 'N/A'}</p>
                 <button
                   onClick={handleCopyReferralCode}
                   className={`p-3 rounded-xl transition-all ${
@@ -1856,7 +1856,7 @@ const ReferralDashboard = ({ user, onLogout }: any) => {
                 </div>
                 <p className="text-xs text-slate-400 font-black uppercase tracking-widest">Total Referrals</p>
               </div>
-              <p className="text-4xl font-black text-emerald-500">{referralStats.totalReferrals}</p>
+              <p className="text-4xl font-black text-emerald-500">{referralStats.totalReferrals ?? 0}</p>
             </div>
 
             <div className="glass-card p-8 rounded-[2.5rem] border border-slate-200 dark:border-white/10">
@@ -1866,7 +1866,7 @@ const ReferralDashboard = ({ user, onLogout }: any) => {
                 </div>
                 <p className="text-xs text-slate-400 font-black uppercase tracking-widest">Earnings</p>
               </div>
-              <p className="text-3xl font-black text-blue-500">${referralStats.referralEarnings.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              <p className="text-3xl font-black text-blue-500">${(referralStats.referralEarnings ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             </div>
           </div>
 
