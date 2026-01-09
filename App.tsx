@@ -612,6 +612,41 @@ const InvestorDashboard = ({ user, onLogout }: any) => {
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [sortBy, setSortBy] = useState('date-desc');
 
+  // Helper functions defined at top of component to avoid hook mismatch
+  const getKYCBadgeStyle = (kycStatus: string) => {
+    switch (kycStatus) {
+      case 'APPROVED':
+        return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/20';
+      case 'PENDING':
+        return 'bg-amber-500/20 text-amber-400 border-amber-500/20';
+      case 'REJECTED':
+        return 'bg-red-500/20 text-red-400 border-red-500/20';
+      default:
+        return 'bg-slate-500/20 text-slate-400 border-slate-500/20';
+    }
+  };
+
+  const getColorClasses = (color: string) => {
+    const colorMap: Record<string, { bg: string; text: string }> = {
+      emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-500' },
+      blue: { bg: 'bg-blue-500/10', text: 'text-blue-500' },
+      amber: { bg: 'bg-amber-500/10', text: 'text-amber-500' },
+      red: { bg: 'bg-red-500/10', text: 'text-red-500' },
+      purple: { bg: 'bg-purple-500/10', text: 'text-purple-500' },
+      pink: { bg: 'bg-pink-500/10', text: 'text-pink-500' },
+    };
+    return colorMap[color] || colorMap.emerald;
+  };
+
+  const handleRefreshDashboard = async () => {
+    try {
+      const data = await dashboardService.getInvestorDashboard();
+      setDashboardData(data);
+    } catch (err: any) {
+      console.error('Failed to refresh dashboard:', err);
+    }
+  };
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -682,33 +717,6 @@ const InvestorDashboard = ({ user, onLogout }: any) => {
   const unreadNotifications = dashboardData.unreadNotifications || 0;
   const paymentAddresses = dashboardData.paymentAddresses || [];
 
-  // Get KYC badge styling
-  const getKYCBadgeStyle = () => {
-    switch (kycStatus) {
-      case 'APPROVED':
-        return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/20';
-      case 'PENDING':
-        return 'bg-amber-500/20 text-amber-400 border-amber-500/20';
-      case 'REJECTED':
-        return 'bg-red-500/20 text-red-400 border-red-500/20';
-      default:
-        return 'bg-slate-500/20 text-slate-400 border-slate-500/20';
-    }
-  };
-
-  // Map color names to static Tailwind classes (avoids dynamic class generation)
-  const getColorClasses = (color: string) => {
-    const colorMap: Record<string, { bg: string; text: string }> = {
-      emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-500' },
-      blue: { bg: 'bg-blue-500/10', text: 'text-blue-500' },
-      amber: { bg: 'bg-amber-500/10', text: 'text-amber-500' },
-      red: { bg: 'bg-red-500/10', text: 'text-red-500' },
-      purple: { bg: 'bg-purple-500/10', text: 'text-purple-500' },
-      pink: { bg: 'bg-pink-500/10', text: 'text-pink-500' },
-    };
-    return colorMap[color] || colorMap.emerald;
-  };
-
   // Filtered and sorted transactions
   const filteredTransactions = useMemo(() => {
     let filtered = [...transactions];
@@ -735,20 +743,11 @@ const InvestorDashboard = ({ user, onLogout }: any) => {
     return filtered;
   }, [transactions, filterType, filterStatus, sortBy]);
 
-  const handleRefreshDashboard = async () => {
-    try {
-      const data = await dashboardService.getInvestorDashboard();
-      setDashboardData(data);
-    } catch (err: any) {
-      console.error('Failed to refresh dashboard:', err);
-    }
-  };
-
   return (
     <DashboardShell title="Investor Dashboard" user={user} onLogout={onLogout}>
       {/* KYC Status & Notifications Bar */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-        <div className={`glass-card p-4 rounded-2xl border ${getKYCBadgeStyle()} flex items-center justify-between`}>
+        <div className={`glass-card p-4 rounded-2xl border ${getKYCBadgeStyle(kycStatus)} flex items-center justify-between`}>
           <div>
             <p className="text-sm font-bold uppercase tracking-widest mb-1">KYC Status</p>
             <p className="text-lg font-bold capitalize">{kycStatus.replace('_', ' ')}</p>
