@@ -696,6 +696,19 @@ const InvestorDashboard = ({ user, onLogout }: any) => {
     }
   };
 
+  // Map color names to static Tailwind classes (avoids dynamic class generation)
+  const getColorClasses = (color: string) => {
+    const colorMap: Record<string, { bg: string; text: string }> = {
+      emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-500' },
+      blue: { bg: 'bg-blue-500/10', text: 'text-blue-500' },
+      amber: { bg: 'bg-amber-500/10', text: 'text-amber-500' },
+      red: { bg: 'bg-red-500/10', text: 'text-red-500' },
+      purple: { bg: 'bg-purple-500/10', text: 'text-purple-500' },
+      pink: { bg: 'bg-pink-500/10', text: 'text-pink-500' },
+    };
+    return colorMap[color] || colorMap.emerald;
+  };
+
   // Filtered and sorted transactions
   const filteredTransactions = useMemo(() => {
     let filtered = [...transactions];
@@ -779,15 +792,18 @@ const InvestorDashboard = ({ user, onLogout }: any) => {
           { label: 'Wallet Balance', value: `$${wallet?.balance?.toFixed(2) || '0.00'}`, icon: CreditCard, color: 'emerald' },
           { label: 'Total Invested', value: `$${wallet?.totalInvested?.toFixed(2) || '0.00'}`, icon: Briefcase, color: 'blue' },
           { label: 'Total Earned', value: `$${wallet?.totalEarned?.toFixed(2) || '0.00'}`, icon: ArrowUpRight, color: 'amber' }
-        ].map((stat, i) => (
-          <div key={i} className="glass-card p-8 rounded-[2rem] border border-slate-200 dark:border-white/10 shadow-xl shadow-slate-200/20 dark:shadow-none">
-            <div className={`p-3 bg-${stat.color}-500/10 text-${stat.color}-500 w-fit rounded-xl mb-4`}>
-              <stat.icon size={24} />
+        ].map((stat, i) => {
+          const colorClasses = getColorClasses(stat.color);
+          return (
+            <div key={i} className="glass-card p-8 rounded-[2rem] border border-slate-200 dark:border-white/10 shadow-xl shadow-slate-200/20 dark:shadow-none">
+              <div className={`p-3 ${colorClasses.bg} ${colorClasses.text} w-fit rounded-xl mb-4`}>
+                <stat.icon size={24} />
+              </div>
+              <p className="text-sm text-slate-500 dark:text-gray-400 font-bold uppercase tracking-widest">{stat.label}</p>
+              <p className="text-3xl font-black mt-1 tracking-tight">{stat.value}</p>
             </div>
-            <p className="text-sm text-slate-500 dark:text-gray-400 font-bold uppercase tracking-widest">{stat.label}</p>
-            <p className="text-3xl font-black mt-1 tracking-tight">{stat.value}</p>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Tab Content */}
